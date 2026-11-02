@@ -1,0 +1,24 @@
+# voice-frontend.service
+[Unit]
+Description=Voice front-end (USB mic -> FPGA features -> MQTT)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# '+' runs this one step as root: loading a bitstream needs privileges, the app does not
+ExecStartPre=+/usr/bin/fpgautil -b /lib/firmware/voice_fe.bit.bin -o /lib/firmware/voice.dtbo
+# settings: image defaults, then /data overrides ('-' = fine if missing; later file wins)
+EnvironmentFile=/etc/voice/voice.conf
+EnvironmentFile=-/data/voice.conf
+WorkingDirectory=/opt/voice
+ExecStart=/usr/bin/python3 /opt/voice/frontend.py
+User=voice
+Group=voice
+SupplementaryGroups=audio
+Restart=on-failure
+RestartSec=2
+# P4 adds sandboxing lines here via a drop-in (security/voice-frontend.hardening.conf)
+
+[Install]
+WantedBy=multi-user.target

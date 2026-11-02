@@ -1,0 +1,7 @@
+*.wav binary
+*.onnx binary
+*.bit binary
+*.bin binary
+*.xsa binary
+*.pdf binary
+* text=auto eol=lf

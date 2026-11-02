@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# datasets and big models (download with the scripts, don't commit)
+data/
+*.pt
+# PetaLinux
+os/petalinux/**/build/
+os/petalinux/**/images/
+os/petalinux/**/components/
+*.petalinux/
+# Buildroot
+os/buildroot/**/output/
+os/buildroot/**/dl/
+# Vivado / Vitis HLS
+hw/**/*.runs/
+hw/**/*.cache/
+hw/**/*.sim/
+hw/**/*.ip_user_files/
+hw/**/*.hw/
+hw/**/.Xil/
+hw/**/vivado*.jou
+hw/**/vivado*.log
+hw/**/*.str
+hw/**/hls_proj/
+hw/**/solution*/
+# disk images, archives
+*.img
+*.wic
+*.iso
+*.sdimg
+# local settings and secrets
+*.secret
+.env
+data.voice.conf
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
