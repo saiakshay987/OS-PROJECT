@@ -1,0 +1,16 @@
+/* hw/overlay/qmlp.dtso — describes the accelerator's registers to Linux. One overlay fits every pool member because
+   they all use the same address. BOARD ONLY, untested. Check the address in Vivado's Address Editor. */
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target = <&amba>;
+        __overlay__ {
+            qmlp_uio: qmlp@40000000 {
+                compatible = "generic-uio";
+                reg = <0x40000000 0x10000>;
+            };
+        };
+    };
+};
+/* kernel bootargs must contain:  uio_pdrv_genirq.of_id=generic-uio */

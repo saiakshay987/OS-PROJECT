@@ -1,0 +1,31 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+data/
+*.pt
+# NEVER commit the signing key
+keys/pool_priv.pem
+keys_release/
+*.secret
+.env
+# PetaLinux / Buildroot / Vivado / HLS build output
+os/petalinux/**/build/
+os/petalinux/**/images/
+os/petalinux/**/components/
+os/buildroot/**/output/
+os/buildroot/**/dl/
+hw/hls/build/
+hw/**/*.runs/
+hw/**/*.cache/
+hw/**/*.sim/
+hw/**/*.hw/
+hw/**/*.ip_user_files/
+hw/**/.Xil/
+hw/**/vivado*.jou
+hw/**/vivado*.log
+*.img
+*.wic
+.vscode/
+.idea/
+.DS_Store

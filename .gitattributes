@@ -1,0 +1,8 @@
+*.npz binary
+*.pt binary
+*.bit binary
+*.bin binary
+*.xsa binary
+*.pdf binary
+*.png binary
+* text=auto eol=lf

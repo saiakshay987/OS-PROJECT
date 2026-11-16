@@ -1,0 +1,7 @@
+numpy
+pandas
+paho-mqtt>=2.0
+pytest
+matplotlib
+# install torch separately with the command from https://pytorch.org/get-started/locally/ (CUDA build on the RTX 4050 laptops)
+torch
