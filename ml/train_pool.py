@@ -41,7 +41,8 @@ for group, specs, split in (("pool", POOL, "def"), ("baseline", BASE, "def"), ("
         m = qat.export(net, {**sp, "group": group, "drop_shortcuts": a.drop_shortcuts})
         Xv, yv = (X["def"][-nv:], y["def"][-nv:]) if split == "def" else (X["atk"][-nv:], y["atk"][-nv:])
         qat.calibrate(m, Xv, yv, a.fpr)
-        agree = float(((qat.float_scores(net, X["test"]) > 0) == (m.score(X["test"]) > 0)).mean())
+        ft = qat.float_thr(net, Xv, yv, a.fpr)                  # agreement at each model's own calibrated threshold (deployed point)
+        agree = float(((qat.float_scores(net, X["test"]) > ft) == (m.score(X["test"]) > m.thr)).mean())
         r = {"model": sp["name"], "group": group, **{k: round(v, 4) for k, v in qat.metrics(m, X["test"], y["test"]).items()},
              "float_int_agreement": round(agree, 4), "thr": m.thr}
         rows.append(r); print("   ", r); m.save(os.path.join(a.out, group, sp["name"] + ".npz"))
