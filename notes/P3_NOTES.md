@@ -102,3 +102,74 @@ m3.npz gave `REJECTED: m3.npz: hash mismatch`.
 - Single seed per model; no repeat runs.
 - The 6 models were trained on UNSW-NB15 flow records encoded to 61 bytes (common/features.py); no live-traffic evaluation.
 - Tell the team to pin `pytest<9` in requirements.txt (not changed by P3).
+
+## Stage 2: E1 transfer experiment and the stage-2 model (20 Nov 2026) - branch p3/e1-e2-results
+Code base: main at b3137f5 (model pack v1) plus the new ml/e1_random_baseline.py, committed together with these
+results on branch p3/e1-e2-results. Models: the pack in models/ (QAT_K2=2.0). Dataset: UNSW-NB15 (data/unsw_prep.npz).
+
+### Stage-2 classifier
+Command: `python ml/train_stage2.py --epochs 20` -> models/stage2.pt (791,924 B, NOT in git: *.pt is ignored).
+Float MLP 61-512-256-128-10 on the GPU, 10 categories (Normal + 9 attack types), class-weighted loss, seed 0.
+Test accuracy (10 classes, 51,535 test records): 0.780 at epoch 20 (the saved model); best epoch 19 = 0.791.
+The script saves the LAST epoch, not the best, and prints no per-class accuracy, so which categories it confuses is unknown.
+app/laptop/stage2_server.py needs this file: it loads `--model` (default `models/stage2.pt`, relative to the folder
+it is started from, so start it from the repo root) at startup and stops with an error if it is missing. Anyone who clones
+the repo must run prepare.py + train_stage2.py (or get the file) first. Checked: torch 2.6 loads it with the default
+`weights_only=True` (n_in 61, 10 classes).
+
+### E1: how it works
+Each cell [row R, column C] = of the attack records that model C detects, the share that evade C after the knobs were
+tuned on model R. The attacker can only change the 5 knobs of common/features.py: dur x1-8, sbytes x1-4, spkts x1-3,
+sinpkt x0.5-4, sjit x0.5-4 (score-based hill climb, ml/attacks.py, seed 0). n = 2,000 attack records from the test split
+(seed 0); each column detects 1,676 (m1) to 1,779 (m4) of them, so 0.01 is about 17 records (1 standard error at 0.01 is
+about 0.0024, estimated, not printed by the script).
+
+Commands and files:
+- `python ml/e1_transfer.py --n 2000 --steps 80` -> results/e1_transfer.csv, results/e1_transfer.png
+- `python ml/e1_transfer.py --n 2000 --steps 400` -> results/e1_transfer_steps400.csv/.png
+- `python ml/e1_transfer.py --n 2000 --steps 1000` -> results/e1_transfer_steps1000.csv/.png
+  (e1_transfer.py always writes results/e1_transfer.csv/.png; the 400/1000 outputs were renamed and the 80-step files
+  restored; the 80-step CSV hash was checked unchanged.) Run time: 400 steps 4 min, 1000 steps 8 min.
+- `python ml/e1_random_baseline.py --n 2000 --trials 5` -> results/e1_random_baseline.csv (random knobs, same 5 knobs and
+  ranges, log-uniform, no search, seeds 1-5; no_knobs sanity row is all 0 as required).
+
+### E1 results (pool diagonal and pool_mean per row)
+| model | diag 80 | diag 400 | diag 1000 | random mean +- std | pool_mean 80 | pool_mean 400 | pool_mean 1000 |
+|---|---|---|---|---|---|---|---|
+| m0 | 0.045 | 0.047 | 0.047 | 0.0134 +- 0.0009 | 0.013 | 0.014 | 0.014 |
+| m1 | 0.023 | 0.025 | 0.025 | 0.0088 +- 0.0013 | 0.009 | 0.010 | 0.010 |
+| m2 | 0.035 | 0.037 | 0.038 | 0.0203 +- 0.0020 | 0.011 | 0.012 | 0.012 |
+| m3 | 0.062 | 0.069 | 0.069 | 0.0184 +- 0.0023 | 0.026 | 0.028 | 0.028 |
+| m4 | 0.082 | 0.088 | 0.089 | 0.0259 +- 0.0017 | 0.028 | 0.030 | 0.030 |
+| m5 | 0.029 | 0.031 | 0.031 | 0.0134 +- 0.0012 | 0.011 | 0.012 | 0.012 |
+| big_fp32 | 0.070 | 0.074 | 0.075 | 0.0208 +- 0.0018 | 0.028 | 0.030 | 0.030 |
+| s_fp32 (attacker) | - | - | - | - | 0.029 | 0.031 | 0.031 |
+| pool diagonal mean | 0.046 | 0.050 | 0.050 | - | | | |
+| pool off-diagonal mean | 0.010 | 0.011 | 0.011 | random pool_mean 0.0167 +- 0.0004 | | | |
+Sources: e1_transfer.csv (80), e1_transfer_steps400.csv, e1_transfer_steps1000.csv, e1_random_baseline.csv.
+
+Other rows, pool_mean at 80 / 1000 steps: s_q2 0.006 / 0.007, s_q3 0.001 / 0.001, s_q4 0.015 / 0.017,
+s_ensemble_q 0.007 / 0.008, s_ensemble_all 0.012 / 0.013.
+Strongest pool pairs at 1000 steps (vs random level of the column): m3->m4 0.033 (0.026), m3->m2 0.025 (0.020),
+m4->m3 0.024 (0.018). Float sources at 1000 steps: s_fp32->m4 0.049 (0.026), s_fp32->big_fp32 0.061 (0.021),
+big_fp32->m4 0.048.
+
+evades_ALL_pool: 0.0 in every row at 80, 400 and 1000 steps and in all 5 random trials. Of the 2,000 records, 1,629 are
+detected by all six pool models (counted with a scratchpad script on the same sample; the number does not depend on the
+step count). 0 of 1,629 -> 95% upper bound 0.18% per run (rule of three; exact Clopper-Pearson gives the same). The runs
+reuse the same records, so the bounds do not combine, and the bound only holds inside these knob ranges.
+
+Knob-range ceiling (scratchpad check, NOT a committed result): share of detected records that evade at ANY of the 32
+corners of the knob box or 2,000 random settings per record: m4 0.105 (corners alone 0.086), m1 0.030 (corners 0.029).
+The 1000-step hill climb reaches 0.089 and 0.025, i.e. most of that ceiling.
+
+### What E1 shows (and does not)
+- The diagonal plateaus at 0.050 (0.046 -> 0.050 -> 0.050). The cause is the knob ranges, not the search: even a
+  near-exhaustive search evades only about 3% (m1) to 10.5% (m4) of detected attacks.
+- Within the pool, transfer (off-diagonal mean 0.011) is BELOW the random-knob level (0.0167); the strongest pairs are only
+  slightly above random. E1 therefore gives no evidence of transfer between pool members and no evidence that the pool
+  is diverse; it does not refute diversity either. The attack cannot get far enough above random to tell.
+- Evasions crafted on float models (s_fp32, big_fp32) transfer at about 2-3x the random level: the only transfer signal.
+  Quantised surrogates and ensembles stay at or below random.
+- No record evaded all six pool models (upper bound 0.18% per run, inside these knob ranges).
+- Widening the knob ranges would need a change to common/features.py (frozen); not done.
