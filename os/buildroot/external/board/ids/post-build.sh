@@ -62,3 +62,27 @@ After=nftables.service
 [Service]
 ExecStartPre=
 UNIT
+
+# Fail-closed detector: stop retrying after 3 failed starts instead of looping forever
+cat > "$T/etc/systemd/system/ids.service.d/20-restart.conf" <<'UNIT'
+[Unit]
+StartLimitIntervalSec=300
+StartLimitBurst=3
+[Service]
+RestartSec=30
+UNIT
+
+# No LLMNR / mDNS listener on 5355
+install -d "$T/etc/systemd/resolved.conf.d"
+printf '[Resolve]\nLLMNR=no\nMulticastDNS=no\n' > "$T/etc/systemd/resolved.conf.d/10-no-llmnr.conf"
+
+# read-only root: tmpfs for /var, ro on the boot command line
+grep -q '^tmpfs /var ' "$T/etc/fstab" || echo 'tmpfs /var tmpfs nodev,nosuid,size=32M 0 0' >> "$T/etc/fstab"
+if [ -f "$BINARIES_DIR/extlinux.conf" ]; then
+    sed -i 's/ rw / ro /' "$BINARIES_DIR/extlinux.conf"
+else
+    echo "WARNING: extlinux.conf not found, boot partition still says rw"
+fi
+
+# fstab-ro: force the root entry read-only (the skeleton package keeps writing rw)
+sed -i '/^\/dev\/root[[:space:]]/ s/\brw\b/ro/' "$T/etc/fstab"
