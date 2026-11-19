@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+venv/
 # datasets and big models (download with the scripts, don't commit)
 data/
 *.pt
