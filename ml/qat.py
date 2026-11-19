@@ -5,10 +5,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from qmlp import QMLP, FMLP
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
+K2 = float(os.environ.get("QAT_K2", 2.0))      # 2-bit weights: scale = K2 * mean|w| (a max|w| scale rounded ~99% of the weights to 0)
+
 class QLinear(nn.Linear):
     def __init__(self, i, o, bits):
-        super().__init__(i, o); self.Q = 2 ** (bits - 1) - 1 if bits > 1 else 1
-    def scale(self): return self.weight.detach().abs().max().clamp_min(1e-8) / self.Q
+        super().__init__(i, o); self.bits = bits; self.Q = 2 ** (bits - 1) - 1 if bits > 1 else 1
+    def scale(self):
+        w = self.weight.detach().abs()
+        return (K2 * w.mean() if self.bits == 2 else w.max()).clamp_min(1e-8) / self.Q
     def wint(self): return torch.round(torch.clamp(self.weight / self.scale(), -self.Q, self.Q))
     def forward(self, x):
         wq = self.wint() * self.scale()
@@ -71,10 +75,17 @@ def float_scores(net, X):
         return torch.cat([net(torch.tensor(X[i:i + 8192], dtype=torch.float32, device=DEV) / 255.0)
                           for i in range(0, len(X), 8192)]).cpu().numpy()
 
+def _pick_thr(scores, fpr):
+    s = np.sort(scores); return s[min(len(s) - 1, int(math.ceil((1 - fpr) * len(s))))]
+
 def calibrate(model, Xv, yv, fpr):
     """Set the threshold so that the false-positive rate on benign validation records is `fpr`."""
-    s = np.sort(model.score(Xv[yv == 0])); t = s[min(len(s) - 1, int(math.ceil((1 - fpr) * len(s))))]
+    t = _pick_thr(model.score(Xv[yv == 0]), fpr)
     model.thr = int(t) if isinstance(model, QMLP) else float(t)
+
+def float_thr(net, Xv, yv, fpr):
+    """Same rule as calibrate(), applied to the float network's scores: the float model's operating point."""
+    return float(_pick_thr(float_scores(net, Xv)[yv == 0], fpr))
 
 def metrics(model, X, y):
     p = model.predict(X); tp = int((p & (y == 1)).sum()); fp = int((p & (y == 0)).sum())
