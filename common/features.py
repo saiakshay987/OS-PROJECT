@@ -1,106 +1,78 @@
-# common/features.py — THE reference. The FPGA, the board and the model all follow this file.
+# common/features.py — THE contract for feature vectors. Training, attacks, the appliance and the FPGA all follow this file.
+# Input: UNSW-NB15 'training-set' / 'testing-set' CSV columns. Output: N_IN unsigned bytes per connection record.
+import json
 import numpy as np
 
-SR, NFFT, HOP, NFR, NMEL = 16000, 512, 320, 49, 40
-FMIN, FMAX, EPS = 20.0, 8000.0, 1e-6
+NUM = ["dur", "spkts", "dpkts", "sbytes", "dbytes", "rate", "sttl", "dttl", "sload", "dload", "sloss", "dloss",
+       "sinpkt", "dinpkt", "sjit", "djit", "swin", "dwin", "tcprtt", "synack", "ackdat", "smean", "dmean",
+       "trans_depth", "response_body_len", "ct_srv_src", "ct_state_ttl", "ct_dst_ltm", "ct_src_dport_ltm",
+       "ct_dst_sport_ltm", "ct_dst_src_ltm", "is_ftp_login", "ct_ftp_cmd", "ct_flw_http_mthd", "ct_src_ltm",
+       "ct_srv_dst", "is_sm_ips_ports"]            # stcpb/dtcpb (random TCP sequence numbers) are dropped
+CATS = {"proto": ["tcp", "udp", "arp", "ospf", "icmp", "igmp", "rtp", "sctp"],
+        "service": ["-", "dns", "http", "smtp", "ftp-data", "ftp", "ssh", "pop3"],
+        "state": ["FIN", "INT", "CON", "REQ", "RST"]}          # each gets one extra 'other' column
+SHORTCUTS = ["sttl", "dttl", "ct_state_ttl"]      # TTL artefacts of the testbed; set DROP_SHORTCUTS to zero them
+N_NUM = len(NUM)
+N_CAT = sum(len(v) + 1 for v in CATS.values())
+N_IN = N_NUM + N_CAT                              # 37 + 24 = 61 bytes per record
+IDX = {n: i for i, n in enumerate(NUM)}
 
-def hz2mel(f): return 2595.0 * np.log10(1.0 + f / 700.0)
-def mel2hz(m): return 700.0 * (10.0 ** (m / 2595.0) - 1.0)
+def split_raw(df):
+    """DataFrame -> (R float64 (N, N_NUM) raw numeric values, C uint8 (N, N_CAT) one-hot 0/255)."""
+    missing = [c for c in NUM + list(CATS) if c not in df.columns]
+    if missing:
+        raise ValueError(f"CSV is missing columns {missing}; use the UNSW-NB15 training-set/testing-set files")
+    R = df[NUM].to_numpy(dtype=np.float64)
+    blocks = []
+    for col, vals in CATS.items():
+        s = df[col].astype(str).str.strip()
+        b = np.zeros((len(df), len(vals) + 1), np.uint8)
+        known = np.zeros(len(df), bool)
+        for j, v in enumerate(vals):
+            hit = (s == v).to_numpy(); b[hit, j] = 255; known |= hit
+        b[~known, len(vals)] = 255
+        blocks.append(b)
+    return R, np.hstack(blocks)
 
-HANN = (0.5 - 0.5 * np.cos(2 * np.pi * np.arange(NFFT) / NFFT)).astype(np.float32)  # periodic Hann
+def fit_scaler(R):
+    """Per-feature scale = 99.9th percentile of log1p(value), so a few huge outliers don't flatten everything."""
+    lm = np.percentile(np.log1p(np.clip(R, 0, None)), 99.9, axis=0)
+    return {"logmax": np.maximum(lm, 1e-6).tolist(), "num": NUM}
 
-def mel_filterbank():
-    edges = mel2hz(np.linspace(hz2mel(FMIN), hz2mel(FMAX), NMEL + 2)) * NFFT / SR  # in FFT-bin units
-    k = np.arange(NFFT // 2 + 1)
-    fb = np.zeros((NMEL, NFFT // 2 + 1), np.float32)
-    for m in range(NMEL):
-        l, c, r = edges[m], edges[m + 1], edges[m + 2]
-        fb[m] = np.maximum(0.0, np.minimum((k - l) / (c - l), (r - k) / (r - c)))
-    return fb
+def encode(R, C, scaler, drop_shortcuts=False):
+    """(R, C) -> uint8 (N, N_IN). Numeric: round(255 * min(1, log1p(v) / logmax)). Categorical: 0 or 255."""
+    lm = np.asarray(scaler["logmax"])
+    q = np.rint(255.0 * np.clip(np.log1p(np.clip(R, 0, None)) / lm, 0.0, 1.0)).astype(np.uint8)
+    if drop_shortcuts:
+        q[:, [IDX[n] for n in SHORTCUTS]] = 0
+    return np.hstack([q, C])
 
-MEL_FB = mel_filterbank()                         # shape (40, 257)
+def save_scaler(s, path): json.dump(s, open(path, "w"))
+def load_scaler(path): return json.load(open(path))
 
-def frame(x):                                     # 16000 samples → (49, 512) overlapping frames
-    idx = np.arange(NFFT)[None, :] + HOP * np.arange(NFR)[:, None]
-    return x[idx].astype(np.float32)
+# ---------------- what an attacker can change without breaking the attack (our assumption, state it in the report) ----
+# Each knob is a multiplier on a raw quantity the SENDER controls. Everything else in the record stays fixed.
+KNOBS = [("dur", 1.0, 8.0),       # slow the connection down (never faster than the real attack)
+         ("sbytes", 1.0, 4.0),    # pad packets with junk bytes
+         ("spkts", 1.0, 3.0),     # split into / add extra packets
+         ("sinpkt", 0.5, 4.0),    # change spacing between sent packets
+         ("sjit", 0.5, 4.0)]      # change jitter
+N_KNOBS = len(KNOBS)
+KLO = np.array([k[1] for k in KNOBS]); KHI = np.array([k[2] for k in KNOBS])
 
-def mel_energies(x):                              # what the FPGA v2 block outputs: (49, 40)
-    spec = np.fft.rfft(frame(x) * HANN, n=NFFT)
-    return (spec.real ** 2 + spec.imag ** 2) @ MEL_FB.T
-
-def log_mel(x):                                   # what the board publishes: (49, 40) float32
-    return np.log(mel_energies(x) + EPS).astype(np.float32)
-
-def cmvn(f):                                      # laptop only, right before the model
-    return f - f.mean(axis=0, keepdims=True)
-
-def pad_or_trim(x, n=SR):
-    return x[:n] if len(x) >= n else np.pad(x, (0, n - len(x)))
-
-def windows(x):                                   # same slicing as frontend.py: every 0.5 s, the last 1 s
-    for end in range(SR, len(x) + 1, SR // 2):
-        yield x[end - SR:end]
-
-# ---------------- Voice activity detection: reference for the FPGA block AND the ARM fallback ----------
-VAD_LO, VAD_HI = 4, 32                            # mel bands summed for speech energy (≈280 Hz – 4.3 kHz)
-VAD_MARGIN_DB, VAD_MIN_FRAMES, VAD_HANG = 9.0, 5, 1
-NF_DOWN, NF_UP = 1 / 8, 1 / 1024                  # noise floor falls fast, rises slowly (per frame)
-VAD_WARMUP, NF_WARM = 50, 1 / 4                   # first 50 frames after reset: just follow the input
-VAD_STUCK_FRAMES, VAD_STUCK_WINDOWS = 45, 4       # ~2 s of non-stop 'speech' = new background noise
-
-class Vad:
-    def __init__(self, margin_db=VAD_MARGIN_DB, min_frames=VAD_MIN_FRAMES, hang=VAD_HANG):
-        self.margin = margin_db * np.log(10) / 10        # dB → natural-log units (nepers)
-        self.min_frames, self.hang = min_frames, hang
-        self.reset()
-
-    def reset(self):
-        self.nf, self.hold, self.seen, self.stuck = None, 0, 0, 0
-
-    def update(self, mel):                               # mel: (49, 40) energies of one window
-        n_speech, low = 0, np.inf
-        for e in np.log(mel[:, VAD_LO:VAD_HI].sum(axis=1) + EPS):
-            if self.nf is None:
-                self.nf = e
-            if self.seen < VAD_WARMUP:                   # warm-up: follow the input
-                self.seen += 1
-                self.nf += (e - self.nf) * NF_WARM
-                continue
-            if e > self.nf + self.margin:
-                n_speech += 1
-            self.nf += (e - self.nf) * (NF_DOWN if e < self.nf else NF_UP)
-            low = min(low, e)
-        self.stuck = self.stuck + 1 if n_speech >= VAD_STUCK_FRAMES else 0
-        if self.stuck >= VAD_STUCK_WINDOWS:              # fan/music, not a word: re-anchor the floor
-            self.nf, self.stuck, n_speech = low, 0, 0
-        if n_speech >= self.min_frames:
-            self.hold = self.hang + 1
-        speech = self.hold > 0
-        self.hold = max(0, self.hold - 1)
-        return {"speech": speech, "n_speech": n_speech, "nf": float(self.nf),
-                "nf_db": float(self.nf) * 10 / np.log(10)}
-
-def make_vad_vectors(wav_path, csv_path):         # expected gate decisions for P1's testbench
-    import soundfile as sf
-    x, sr = sf.read(wav_path, dtype="int16"); assert sr == SR
-    v = Vad()
-    with open(csv_path, "w") as f:
-        f.write("window,end_s,gate,n_speech,noise_floor_ln\n")
-        for i, w in enumerate(windows(x)):
-            r = v.update(mel_energies(w))
-            f.write(f"{i},{1 + 0.5 * i:.1f},{int(r['speech'])},{r['n_speech']},{r['nf']:.6f}\n")
-
-def export_c_header(path="mel_fb.h"):
-    with open(path, "w") as h:
-        h.write("// generated by common/features.py — do not edit\n#pragma once\n")
-        for name in ["VAD_LO", "VAD_HI", "VAD_WARMUP", "VAD_STUCK_FRAMES", "VAD_STUCK_WINDOWS"]:
-            h.write(f"#define {name} {globals()[name]}\n")
-        for name in ["NF_DOWN", "NF_UP", "NF_WARM", "EPS"]:
-            h.write(f"#define {name} {globals()[name]:.9e}f\n")
-        h.write(f"const float HANN[{NFFT}] = {{{', '.join(f'{v:.8e}f' for v in HANN)}}};\n")
-        rows = ",\n".join("{" + ", ".join(f"{v:.8e}f" for v in r) + "}" for r in MEL_FB)
-        h.write(f"const float MEL_W[{NMEL}][{NFFT//2+1}] = {{\n{rows}\n}};\n")
-
-if __name__ == "__main__":
-    export_c_header()
-    print("mel_fb.h written; filterbank rows with zero weight:", int((MEL_FB.sum(1) == 0).sum()))
+def apply_knobs(R, K):
+    """R (N, N_NUM) raw records, K (N, N_KNOBS) multipliers -> modified copy with dependent features kept consistent."""
+    K = np.clip(K, KLO, KHI); R = R.copy()
+    dur, sb, sp, si, sj = (K[:, i] for i in range(N_KNOBS))
+    pk_old = R[:, IDX["spkts"]] + R[:, IDX["dpkts"]]
+    R[:, IDX["dur"]] *= dur
+    R[:, IDX["sbytes"]] = np.rint(R[:, IDX["sbytes"]] * sb)
+    R[:, IDX["spkts"]] = np.rint(R[:, IDX["spkts"]] * sp)
+    R[:, IDX["sinpkt"]] *= si
+    R[:, IDX["sjit"]] *= sj
+    pk_new = R[:, IDX["spkts"]] + R[:, IDX["dpkts"]]
+    R[:, IDX["rate"]] *= np.where(pk_old > 0, pk_new / np.maximum(pk_old, 1), 1.0) / dur     # packets per second
+    R[:, IDX["sload"]] *= sb / dur                                                           # source bits per second
+    R[:, IDX["smean"]] = np.rint(R[:, IDX["smean"]] * sb / sp)                               # mean source packet size
+    R[:, IDX["dload"]] /= dur                                                                # same reply, longer time
+    return R

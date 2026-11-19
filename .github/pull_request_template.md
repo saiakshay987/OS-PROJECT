@@ -1,9 +1,9 @@
 ## What and why
 
-## Which folder(s) did you touch? (must be yours, see README)
+## Folder(s) touched (must be yours)
 
-## How did you test it?
+## How it was tested (command + output)
 
 - [ ] `pytest -q` passes
-- [ ] no build output or secrets committed
-- [ ] `NOTES.md` updated
+- [ ] no datasets, build output or private key committed
+- [ ] `notes/` updated

@@ -1,8 +1,0 @@
-numpy
-soundfile
-onnxruntime-gpu
-paho-mqtt>=2.0
-pyautogui
-sounddevice
-torch
-pytest

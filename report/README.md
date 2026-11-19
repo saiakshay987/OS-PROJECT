@@ -1,2 +1,2 @@
 # report/ (P4, everyone contributes)
-Final report, licence list, figures, demo video link.
+Report, licence list, figures, slides, demo video link.

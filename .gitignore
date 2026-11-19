@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.pyc
 .venv/
@@ -7,36 +6,28 @@ venv/
 # datasets and big models (download with the scripts, don't commit)
 data/
 *.pt
-# PetaLinux
+# NEVER commit the signing key
+keys/pool_priv.pem
+keys_release/
+*.secret
+.env
+# PetaLinux / Buildroot / Vivado / HLS build output
 os/petalinux/**/build/
 os/petalinux/**/images/
 os/petalinux/**/components/
-*.petalinux/
-# Buildroot
 os/buildroot/**/output/
 os/buildroot/**/dl/
-# Vivado / Vitis HLS
+hw/hls/build/
 hw/**/*.runs/
 hw/**/*.cache/
 hw/**/*.sim/
-hw/**/*.ip_user_files/
 hw/**/*.hw/
+hw/**/*.ip_user_files/
 hw/**/.Xil/
 hw/**/vivado*.jou
 hw/**/vivado*.log
-hw/**/*.str
-hw/**/hls_proj/
-hw/**/solution*/
-# disk images, archives
 *.img
 *.wic
-*.iso
-*.sdimg
-# local settings and secrets
-*.secret
-.env
-data.voice.conf
-# editor / OS
 .vscode/
 .idea/
 .DS_Store

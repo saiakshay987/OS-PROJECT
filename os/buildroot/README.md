@@ -1,18 +1,14 @@
-# Buildroot (P4)
-
-Commit only this BR2_EXTERNAL tree and the defconfig, never `output/`.
-
+# os/buildroot/ (P4) — commit only this BR2_EXTERNAL tree and the defconfig, never `output/`
 ```
-os/buildroot/external/                      (BR2_EXTERNAL tree — this is what you commit)
-├── external.desc                           name: VOICE
-├── external.mk                             include $(sort $(wildcard $(BR2_EXTERNAL_VOICE_PATH)/package/*/*.mk))
-├── Config.in                               source "$BR2_EXTERNAL_VOICE_PATH/package/voice-app/Config.in"
-├── configs/pynqz2_voice_defconfig          ← make savedefconfig output
-├── board/pynqz2/
-│   ├── ps7_init_gpl.c / .h                 ← from P1's .xsa (it's a zip: unzip -l voice_fe.xsa)
-│   ├── zynq-pynqz2.dts                     ← start from zynq-zed.dts, console on UART0, + P1's dtsi
-│   ├── linux-voice.cfg                     ← P1's kernel fragment
-│   ├── rootfs-overlay/                     ← /etc/nftables.conf, sshd/dropbear config, app files, units
-│   └── post-build.sh
-└── package/voice-app/                      ← Config.in + voice-app.mk installing app/board/*
+os/buildroot/external/
+├── external.desc                 name: IDS
+├── external.mk                   include $(sort $(wildcard $(BR2_EXTERNAL_IDS_PATH)/package/*/*.mk))
+├── Config.in                     source "$BR2_EXTERNAL_IDS_PATH/package/ids-app/Config.in"
+├── configs/ids_zynq_defconfig    <- 'make savedefconfig' output
+├── board/ids/
+│   ├── linux-ids.cfg             <- copy of kernel/ids.cfg
+│   ├── rootfs-overlay/           <- /etc/nftables.conf, /etc/ids/*, /opt/ids/*, systemd unit, sysctl file
+│   └── post-build.sh             <- creates the 'ids' user, enables the service
+└── package/ids-app/              <- Config.in + ids-app.mk installing app/appliance/* and common/{qmlp,modelpack}.py
 ```
+Packages to select: python3, python-numpy, python-paho-mqtt, nftables, openssl (binary), systemd or BusyBox init, dropbear.

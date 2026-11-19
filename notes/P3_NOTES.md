@@ -1,3 +1,3 @@
-# P3 notes (features + model + laptop app)
+# P3 notes (models, experiments, laptop side)
 
-Every command that worked, every error and its fix, with dates. This becomes your report section.
+Every command that worked, every error and its fix, with dates. Every number with the commit and command that produced it.

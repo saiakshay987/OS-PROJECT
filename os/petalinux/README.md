@@ -1,2 +1,2 @@
 # os/petalinux/ (P2)
-Commit `project-spec/` only. Never `build/` or `images/`. Install `voice-frontend.service`, `99-uio.rules` and `app/board/*` through the recipe.
+Commit `project-spec/` only. `ids-app.bb`, `ids.service` and `fstab.example` here are the starting points; the recipe lists which files to copy into `files/`.

@@ -1,0 +1,15 @@
+-rw-r--r--. 1 dokkaebi dokkaebi 8337309696 Sep 24  2025 /home/dokkaebi/Downloads/pynq_z2_v3.1.1.img
+NAME      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+loop0       7:0    0  7.8G  0 loop 
+├─loop0p1 259:8    0  130M  0 part 
+└─loop0p2 259:9    0  7.6G  0 part 
+total 8136
+-rwxr-xr-x. 1 root root 1165852 Sep 24  2025 BOOT.BIN
+-rwxr-xr-x. 1 root root     991 Sep 24  2025 boot.py
+-rwxr-xr-x. 1 root root    3473 Sep 24  2025 boot.scr
+-rwxr-xr-x. 1 root root 7147780 Sep 24  2025 image.ub
+-rwxr-xr-x. 1 root root     197 Sep 24  2025 REVISION
+5440	/mnt/stock_root
+1628
+20
+14

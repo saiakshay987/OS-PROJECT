@@ -1,2 +1,0 @@
-# 99-uio.rules — let the 'voice' user open the UIO devices without root
-SUBSYSTEM=="uio", GROUP="voice", MODE="0660"

@@ -1,6 +1,6 @@
-# third SD partition (ext4, label 'data') holds everything that must survive reboots
+# third SD partition (ext4, label 'data') holds everything that must survive reboots: /data/pool (model updates), /data/ids.conf
 /dev/mmcblk0p3   /data      ext4     defaults,noatime,nodev,nosuid           0  2
 tmpfs            /tmp       tmpfs    nodev,nosuid,size=32M                   0  0
-# writable overlays on top of read-only directories
 overlay  /var/lib  overlay  lowerdir=/var/lib,upperdir=/data/varlib/upper,workdir=/data/varlib/work  0 0
-overlay  /home     overlay  lowerdir=/home,upperdir=/data/home/upper,workdir=/data/home/work        0 0
+# in QEMU without a third partition, use a tmpfs for /data instead (updates are then lost at power-off; say so):
+# tmpfs          /data      tmpfs    nodev,nosuid,size=64M                   0  0

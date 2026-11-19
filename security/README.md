@@ -1,2 +1,2 @@
 # security/ (P4)
-nftables, sshd, systemd drop-in and sysctl hardening. Test each change on the board and note the result in `NOTES.md`.
+Firewall, sshd, systemd sandbox and sysctl files, plus MQTT authentication notes. Test each in QEMU and record the result.

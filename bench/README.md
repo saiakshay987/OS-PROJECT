@@ -1,2 +1,2 @@
 # bench/ (P4)
-`count_traffic.py <label> <seconds>` appends one CSV row to `track_e.csv`. Run it on the laptop for each of: arm/fpga x vad off/on, silence and speech. Commit the raw CSVs.
+`speed.py` (model speed on any machine), `measure_image.sh` (inside an image), `stock_offline.sh` (stock PYNQ image without a board). Commit raw CSVs.
