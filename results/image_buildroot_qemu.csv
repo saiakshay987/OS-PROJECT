@@ -1,0 +1,2 @@
+image,kernel,uptime_s,mem_used_mb,root_used_mb,processes,modules,listening_ports,packages,setuid_files,boot
+buildroot,6.6.70-xilinx,361.29,31,96,55,0,7,NA,2,"Startup finished in 2.355s (kernel) + 27.161s (userspace) = 29.516s"
