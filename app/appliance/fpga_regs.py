@@ -1,8 +1,9 @@
 # app/appliance/fpga_regs.py — register access to the HLS block through UIO.   Owner: P1
-# BOARD ONLY and UNTESTED: the offsets below are placeholders. After 'export_design', copy the real ones from
-# <hls project>/sol1/impl/misc/drivers/qmlp_v1_0/src/xqmlp_hw.h and delete this warning.
+# The register offsets below MATCH the xqmlp_hw.h generated for m0 (see cosim/NOTES.md). That register map was exercised by the
+# Verilator test of the RTL (Check R) and by /dev/mem accesses from Linux in the QEMU co-simulation (Check C, cosim/linux/cosim_test.py).
+# This module itself (the UIO open and the score() loop) has NOT been run: board only and UNTESTED.
 import mmap, os, struct
-CTRL, SCORE, ATTACK, MODEL_ID, X_BASE = 0x00, 0x10, 0x20, 0x30, 0x40      # <-- replace with xqmlp_hw.h values
+CTRL, SCORE, ATTACK, MODEL_ID, X_BASE = 0x00, 0x10, 0x20, 0x30, 0x40      # = XQMLP_CTRL_ADDR_{AP_CTRL,SCORE_DATA,ATTACK_DATA,MODEL_ID_DATA,X_BASE}
 _m = None
 def open(dev="/dev/uio0", size=0x10000):
     global _m
