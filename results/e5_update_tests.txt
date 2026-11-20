@@ -1,0 +1,26 @@
+E5 on commit 190cbc8, 2026-11-20T13:38:38+05:30
+== T0 factory pack verifies with the release public key
+OK: version 1, 6 models
+   PASS
+== T1 valid newer pack, version 2 (expect: installed)
+installed /tmp/e5/pool/v2
+   PASS
+== T2 one model replaced by another valid model (expect: REJECTED, hash mismatch)
+REJECTED: m2.npz: hash mismatch
+   PASS
+== T3 manifest rewritten, not re-signed (expect: REJECTED, signature)
+REJECTED: signature check failed
+   PASS
+== T4 signed with another key (expect: REJECTED, signature)
+REJECTED: signature check failed
+   PASS
+== T5 old pack replayed, version 1 after 2 (expect: REJECTED, version)
+REJECTED: version 1 is not newer than installed 2
+   PASS
+== T6 file corrupted after install (expect: idsd falls back to the factory pack; check by eye)
+pack REJECTED: /tmp/e5/pool/v2: m0.npz: hash mismatch -> trying the next one (rollback)
+pack OK: models/pool version 1 with 6 models
+idsd up: backend=arm input=mqtt rotate=off/30.0s pool=6 N_IN=61 active=m1
+== verification time of the real pack (this laptop, not the appliance)
+OK: version 1, 6 models
+real	0m0.190s
