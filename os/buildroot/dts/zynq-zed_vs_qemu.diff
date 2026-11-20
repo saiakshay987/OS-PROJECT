@@ -1,0 +1,6 @@
+326,327c326,327
+< 			ethernet-phy@0 {
+< 				reg = <0x00>;
+---
+> 			ethernet-phy@7 {
+> 				reg = <0x07>;

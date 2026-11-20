@@ -1,0 +1,30 @@
+package,version,licence,redistributable,in_rootfs,source_archive
+busybox,1.37.0,"GPL-2.0, bzip2-1.0.6",True,yes,busybox-1.37.0.tar.bz2
+dbus,1.14.10,"AFL-2.1 or GPL-2.0+ (library, tools), GPL-2.0+ (tools)",True,yes,dbus-1.14.10.tar.xz
+dropbear,2026.93,"MIT, BSD-2-Clause, Public domain , Unlicense, WTFPL",True,yes,dropbear-2026.93.tar.bz2
+expat,2.9.0,MIT,True,yes,expat-2.9.0.tar.xz
+gcc-final,13.4.0,GPL-3.0-with-GCC-exception,True,yes,gcc-13.4.0.tar.xz
+glibc,2.41-167-gf247c0a2fb5b3e48a771d2d23efc9a45c64e957d,"GPL-2.0+ (programs), LGPL-2.1+, BSD-3-Clause, MIT (library)",True,yes,glibc-2.41-167-gf247c0a2fb5b3e48a771d2d23efc9a45c64e957d-git4.tar.gz
+kbd,2.6.4,GPL-2.0+,True,yes,kbd-2.6.4.tar.xz
+kmod,33,"LGPL-2.1+ (library) , GPL-2.0+ (tools)",True,yes,kmod-33.tar.xz
+libcap,2.73,GPL-2.0 or BSD-3-Clause,True,yes,libcap-2.73.tar.xz
+libffi,3.4.6,MIT,True,yes,libffi-3.4.6.tar.gz
+libmnl,1.0.5,LGPL-2.1+,True,yes,libmnl-1.0.5.tar.bz2
+libnftnl,1.2.7,GPL-2.0+,True,yes,libnftnl-1.2.7.tar.xz
+libopenssl,3.5.9,Apache-2.0,True,yes,openssl-3.5.9.tar.gz
+libxcrypt,4.4.38,LGPL-2.1+,True,yes,libxcrypt-4.4.38.tar.xz
+libzlib,1.3.2,Zlib,True,yes,zlib-1.3.2.tar.xz
+linux,custom,GPL-2.0,True,yes,xlnx_rebase_v6.6_LTS_merge_6.6.70.tar.gz
+linux-headers,custom,GPL-2.0,True,no,xlnx_rebase_v6.6_LTS_merge_6.6.70.tar.gz
+nftables,1.1.0,GPL-2.0,True,yes,nftables-1.1.0.tar.xz
+nftables-python,1.1.0,GPL-2.0,True,yes,nftables-1.1.0.tar.xz
+python-numpy,1.25.0,"BSD-3-Clause, MIT, Zlib",True,yes,numpy-1.25.0.tar.gz
+python-paho-mqtt,2.1.0,EPL-2.0 or BSD-3-Clause,True,yes,python-paho-mqtt-2.1.0.tar.gz
+python3,3.12.15,"Python-2.0, others",True,yes,Python-3.12.15.tar.xz
+skeleton-init-common,,GPL-2.0-or-later,True,yes,
+skeleton-init-systemd,,"GPL-2.0-or-later, LGPL-2.1-or-later (factory/var.mount)",True,yes,
+systemd,256.17,"LGPL-2.1+, GPL-2.0+ (udev), Public Domain (few source files, see LICENSES/README.md), BSD-2-Clause (eBPF instruction mini library), BSD-3-Clause (tools/chromiumos), CC0-1.0 (few source files, see LICENSES/README.md), GPL-2.0 with Linux-syscall-note (linux kernel headers), MIT-0 (few source files, see LICENSES/README.md), MIT (few source files, see LICENSES/README.md), OFL-1.1 (Heebo fonts)",True,yes,systemd-256.17.tar.gz
+tzdata,2026e,Public domain,True,yes,tzdata2026e.tar.gz
+uboot,custom,GPL-2.0+,True,no,xlnx_rebase_v2024.01_2024.2.tar.gz
+util-linux,2.40.4,"GPL-2.0+, BSD-4-Clause, LGPL-2.1+ (libblkid, libfdisk, libmount), BSD-3-Clause (libuuid), BSD-2-Clause (xxhash), ISC (rfkill), MIT (hardlink, flock)",True,yes,util-linux-2.40.4.tar.xz
+util-linux-libs,2.40.4,"LGPL-2.1+ (libblkid, libfdisk, libmount), BSD-3-Clause (libuuid)",True,no,util-linux-2.40.4.tar.xz
