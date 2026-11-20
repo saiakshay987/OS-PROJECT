@@ -69,3 +69,32 @@ Averaging N samples shrinks the standard error by sqrt(N). Crude sample count to
 Assumptions that make these rough: sigma from percentiles assumes a normal shape, but the real tail is heavy (bursts of newly blocked sources, P2 E3-QEMU (f)); samples assumed independent; attacker assumed to see the full record-to-alert time.
 Limits: (1) the demo runs the models as CPU integer code in QEMU, not on the FPGA, so the FPGA latencies are not what a client would observe; CPU inference time per model has not been measured. (2) HLS numbers are estimates, with AXI-Lite transfer time not included. (3) Must be re-measured from a second machine once the board exists. (4) A visible leak already exists in the swap itself: with the `hold` fallback, alert p95 rises to 206 ms at 500/s in QEMU (P2), so swap timing is observable with far fewer samples than model identity. (5) The blocked/allowed answers are an easier channel than timing (P4's E4).
 Standard fix: delay every answer to the slowest model's latency. Cost: everyone gets the slowest model's speed, i.e. 39.27 us instead of 1.35 us at the default design point, but only 2.04 us if m4 is built `fast`. Building m4 `fast` removes most of the signal at no cost in speed, for about 2.1x m4's LUTs.
+
+## 2026-11-20 evening: P2's kernel check and CPU model speed (source: P2 message, QEMU, emulated ARM)
+### Kernel options on P2's PetaLinux build (kernel 6.6.10-xilinx, build/.../linux-xlnx-zc702-standard-build/.config)
+| Option | Result |
+|---|---|
+| NF_TABLES, NF_TABLES_IPV4, OVERLAY_FS | =y (took effect) |
+| FPGA | =y (FPGA_MGR has no line in 6.6.10; FPGA is the subsystem switch) |
+| SOUND, DRM | not set (trimming took effect) |
+| NAMESPACES, UTS_NS, NFT_COUNTER | NOT present: P2's build used the old `ids.cfg`; the new lines were only merged to main afterwards (PR #17). Not rebuilt, so unverified. |
+Sizes (P2): zImage 4,560,016 B, vmlinux 13,468,952 B, image.ub 49,159,852 B. Boot 13.4 s before pruning, 9.6 s after, in QEMU. This is before/after pruning the *services*, NOT before/after the kernel fragment, so no fragment effect is claimed.
+Buildroot (P4 notes): kernel 6.6.70-xilinx, uImage 4,659,952 B, boot to multi-user 29.5 s in QEMU. P4 also reports no UTS namespaces. No final Buildroot .config is in the repo (only `ids_zynq_defconfig`, which merges `kernel/ids.cfg` and `linux-extra.cfg`), and no before/after for the fragment. Still owed by P4: the final `.config`.
+
+### CPU inference time per record in QEMU (us, median / p95; ids service stopped)
+| Model | Batch 1 | Batch 64 | Batch 1024 |
+|---|---|---|---|
+| m0 | 768.0 / 894.9 | 44.4 / 47.7 | 64.4 / 71.3 |
+| m1 | 778.1 / 920.9 | 46.0 / 49.3 | 65.8 / 75.3 |
+| m2 | 767.7 / 933.2 | 35.9 / 38.9 | 46.4 / 47.5 |
+| m3 | 753.6 / 895.4 | 24.0 / 26.9 | 20.2 / 20.9 |
+| m4 | 788.8 / 930.6 | 54.4 / 57.9 | 77.2 / 91.4 |
+| m5 | 1187.2 / 1399.3 | 44.3 / 47.8 | 34.3 / 35.3 |
+P2: repeat runs differ by 15-18% at batch 1, so differences under ~15% mean nothing; batch 1024 p95 rests on only 50 calls.
+
+### Timing-leak analysis, update with CPU numbers
+- On the CPU the ranking differs from the FPGA ranking: at batch 1 the outlier is **m5** (about 1187 us, 400-430 us slower than the rest), the other five lie within 35 us (inside the 15% noise); at batch 1024 the spread is m3 20 us to m4 77 us. On the FPGA (default design) the outlier is m4 (39 us). So which model is distinguishable depends on the backend and the batch size.
+- m5 vs the rest at batch 1: signal ~400-430 us against QEMU service noise (median 21.4 ms, p95 195 ms, sigma ~106 ms by the percentile rule): N = 2 * 2.8^2 * sigma^2 / delta^2 ≈ 0.9-1.1e6 samples per model. Blocking a source after its first alert would limit how many samples the attacker gets, but this was not measured.
+- The five similar models would need ~1.4e8 samples (35 us signal), but that signal is below P2's measurement noise, so treat it as not measured.
+- Caveat: the speed benchmark times the model call alone; the alert latency is the full QEMU path. Combining them assumes the noise is independent of the model, which was not tested. The sigma estimate assumes a normal shape although P2 shows a heavy tail.
+- The pad-to-slowest fix would cost ~1.2 ms (m5, batch 1) per record on the CPU backend, ~39 us on FPGA (default design) or ~2 us if m4 is built fast.
