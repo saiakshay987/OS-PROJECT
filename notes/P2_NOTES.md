@@ -354,6 +354,30 @@ QEMU, rate 300, first run after boot, p50 / p95 in ms:
 
 Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 120-130 ms; this is suggestive and the cause is untested. The tail was already traced to bursts of newly blocked sources, where the main loop spawns `nft` synchronously (E3-QEMU (f)). **No claim is made that the sandbox causes the gap.**
 
+### Live chain with P3 (20 Nov 2026)
+
+**Setup.** P3's laptop ran `app/laptop/replay.py` (5000 records, 300/s, 3154 attacks) through the Mosquitto broker on P2's laptop (10.29.21.79, `ufw allow 1883/tcp`) to the `ids` service in QEMU on PetaLinux (guest 10.0.2.15, broker 10.0.2.2). P3 ran `app/laptop/stage2_server.py` (GPU) for stage 2. Evidence: `results/live_chain_nft.png`.
+
+**Stage 1.** 2830 alerts: TP 2747, FP 83, FN 407, TN 1763; recall 0.871, FPR 0.045. Each alert added its source to the nft set `blocked`. All 8 attacker IPs (10.0.9.1-8) were in the set every time we looked. Benign hosts in the set rose 20, 27, 31 of 50 over three looks during the run (42-45 in earlier looks). **Known limitation:** first-alert blocking blocks most benign hosts.
+
+**Daemon status** (cumulative since boot, uptime 4183 s): recs 11830, alerts 6751, blocks 134, swaps 125, fallback_recs 0, unclassified 0, held 0, backend arm, rotate poisson, pool 6.
+
+**Stage 2.** The guest journal has 8432 `VERDICT` lines since boot (all runs). Generic 3324, DoS 1885, Exploits 1558, Reconnaissance 797, Fuzzers 388, Shellcode 191, Backdoor 128, Analysis 107, Normal 42, Worms 12. Round trip 17-27 ms in the five lines checked (appliance clock). Some DoS verdicts had conf 0.36. The categories were **not** compared with true labels, so this shows that the step runs, not how accurate it is.
+
+The replay's printed status showed verdicts 0, but it was stale. `idsd.py` increments the counter on every verdict, so trust the journal count.
+
+**Replay latency** (measured on P3's laptop, sender and receiver): median 35.4 ms, p95 152.2 ms, record sent to alert seen.
+
+**Commands used:**
+
+```
+sudo nft list set inet filter blocked
+sudo journalctl -u ids --no-pager | grep -c VERDICT
+sudo journalctl -u ids --no-pager | grep VERDICT | awk '{print $9}' | sort | uniq -c
+```
+
+**Open:** the Buildroot live chain and verdict step are still waiting on P4.
+
 ## 6. Open TODOs
 
 - DONE: E3 results are committed on branch `p2/e3-hardening-results`, commit `61ead56` at the time of writing (E3 CSVs, console log, firewall and read-only screenshots, the notes).
@@ -370,7 +394,7 @@ Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 12
 - Measurements for P4/P1: `bench/measure_image.sh`, `bench/speed.py`, `systemd-analyze`.
 - Service list for the attack-surface count: TODO paste `systemctl list-units --type=service` from the guest.
 - DONE: PR #7 (`p2/paho1-compat` into `main`) was merged on 20 Nov 2026; the paho note was updated (section 1, section 3 item 5, section 7). The fix is in `main` and is now also in this branch after rebasing.
-- TODO (open question to P4, sent 20 Nov 2026, unanswered): who runs the live chain on the Buildroot image, and what should the ids/verdict step show? In P2's runs the verdict counter stayed 0, so P2 can only claim replay -> alert -> nft block on PetaLinux.
+- DONE: live chain on PetaLinux including the verdict step (20 Nov 2026), see "Live chain with P3". Stage 2 accuracy not checked against true labels. TODO (open, waiting on P4): the same live chain and verdict step on the Buildroot image.
 - Fill section 2 with the exact command history.
 - P2 report section.
 
