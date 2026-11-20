@@ -43,3 +43,33 @@ Key pair made with python3 common/modelpack.py keygen keys_release. Public key c
 - models/pool from P3 (not in repo): needed for the signed v2 pack, E5 T1-T6 on the real pack, and the final image that lets ids start.
 - E5 mechanics were rehearsed only on a throwaway fake pack in /tmp. No numbers from that run are reported.
 - E4 fingerprinting: data/unsw missing.
+
+## Appliance vs stock, measured (20 Nov 2026, IST). QEMU values are NOT board values.
+| Metric | Stock PYNQ-Z2 v3.1.1 | Our Buildroot image | Source |
+|---|---|---|---|
+| Used rootfs | 5,440 MiB | 114 MiB (2.1% of stock) | du -sm ~/br-ids/target |
+| Packages | 1,628 | 27 (distinct Buildroot packages with files in the target; different counting method) | cut -d, -f1 packages-file-list.txt, sort -u |
+| setuid files | 14 | 2 (busybox, dbus-daemon-launch-helper) | find / -xdev -perm -4000 |
+| Kernel | image.ub 7,147,780 B + BOOT.BIN 1,165,852 B | uImage 4,659,952 B (6.6.70-xilinx) | ls -l |
+| RAM idle | needs the board | 31 MiB used, 454 MiB available of 496 MiB (QEMU, 512 MB) | free -m, ids running |
+| Boot | needs the board | multi-user target at 29.5 s, ids started at 28.2 s (QEMU, emulated CPU) | journalctl -o short-monotonic |
+| Open TCP ports | not measured | 22 (dropbear) + loopback DNS stubs | netstat -tln |
+
+## E5 update-path tests on the real signed pack (commit 190cbc8, results/e5_update_tests.txt)
+Run on a laptop with common/modelpack.py and app/appliance/idsd.py, release key from keys_release/ (private key not in git). NOT run on the appliance. The appliance itself accepted the factory pack: "pack OK: /opt/ids/pool-factory version 1 with 6 models" (about 12 s after start in QEMU).
+| Test | Result |
+|---|---|
+| T0 factory pack, release public key | OK: version 1, 6 models |
+| T1 valid newer pack (v2) | installed |
+| T2 one model replaced by another valid model | REJECTED: m2.npz hash mismatch |
+| T3 manifest rewritten, not re-signed | REJECTED: signature check failed |
+| T4 signed with another key | REJECTED: signature check failed |
+| T5 old pack (v1) replayed after v2 | REJECTED: version 1 is not newer than installed 2 |
+| T6 installed file corrupted | idsd rejected v2 (m0.npz hash mismatch) and rolled back to the factory pack |
+Verification of the 6-model pack takes 0.19 s on the laptop (not measured on the appliance).
+
+## Licences
+report/licences-manifest.csv from make legal-info (27 target packages). Kernel, U-Boot, busybox, util-linux, nftables: GPL-2.0(+). glibc, systemd, kmod, libxcrypt: LGPL. python3: Python-2.0. python-numpy: BSD-3-Clause. python-paho-mqtt: EPL-2.0 or BSD-3-Clause. openssl: Apache-2.0. dropbear, expat, libffi: MIT. No proprietary software is in the image.
+
+## Branches
+p4/signed-pack-v1 (signed pool + E5 results; PR to p3/model-pack-v1) and p4/report-evidence (licence list + these notes). Earlier work went straight to main (d8de386, 01bc8ed, 2aa68aa, 3b4d39c).
