@@ -14,7 +14,7 @@ Every command that worked, every error and its fix, with dates. Every number wit
 | Board | No PYNQ board. The FPGA swap is imitated (`SWAP_MS`, default 207 ms) |
 | Python (laptop) | 3.10.12, venv `.venv` with paho-mqtt 2.2.0 |
 | Python MQTT (image) | paho-mqtt 1.x (python3-paho-mqtt from the PetaLinux rootfs) |
-| OS-PROJECT repo | `~/Desktop/OS-PROJECT`, branch `p2/paho1-compat`, commit `b9a26ad` (clone of github.com/saiakshay987/OS-PROJECT) |
+| OS-PROJECT repo | `~/Desktop/OS-PROJECT`, branch `p2/e3-hardening-results`, E3 results committed in `61ead56` at the time of writing (clone of github.com/saiakshay987/OS-PROJECT). The paho 1.x fix (PR #7, `p2/paho1-compat`, `b9a26ad`) was merged into `main` on 20 Nov 2026 and is now also in this branch after rebasing |
 | PetaLinux project | `~/plx/ids-os`, **not a git repository**, so there is no commit hash. Its state is described below and by the files in `os/petalinux/` and `kernel/` |
 | Disk | Tight: about 72-76 GB free; installer 3.1 GB (deleted afterwards) |
 
@@ -56,7 +56,7 @@ TODO: the exact command history was not provided and could not be verified from 
 | 2 | Could not find the ZC702 BSP; wrong AMD docs page (EDF) | BSPs are not on the page I opened | BSPs are under the "PetaLinux Board Support Packages" tab of the downloads page |
 | 3 | Laptop commands typed in the QEMU guest (happened twice) | Confusing the guest shell with the laptop shell | Leave QEMU with Ctrl-a x, run on the laptop |
 | 4 | `pytest` crashed | ROS pytest plugins autoloaded | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q` (5 passed) |
-| 5 | `idsd.py` crashed on the image | Image has paho-mqtt 1.x, laptop venv has 2.x; the callback API differs | try/except compatibility patch in `app/appliance/idsd.py`. **TELL TEAM:** it is on branch `p2/paho1-compat`, commit `b9a26ad`, pushed to `origin/p2/paho1-compat`, **not merged into `main`** (main is at `cf12216`). Needs a PR |
+| 5 | `idsd.py` crashed on the image | Image has paho-mqtt 1.x, laptop venv has 2.x; the callback API differs | try/except compatibility patch in `app/appliance/idsd.py`. **TELL TEAM:** the fix was on branch `p2/paho1-compat`, commit `b9a26ad`; PR #7 ("Fix idsd.py crash on paho-mqtt 1.x (image) while keeping 2.x (laptop)") was merged into `main` on 20 Nov 2026. The fix is in `main` and is now also in this branch after rebasing |
 | 6 | Disk space running out | build tree is large | `INHERIT += "rm_work"`; deleted the 3.1 GB installer |
 | 7 | `nft list set` as a normal user in the guest: `Operation not permitted` | Needs root | Expected and good (see section 5, hardening evidence). Use `sudo` |
 | 8 | `blocked` set looks empty | Entries expire after 60 s | Run the replay and list the set within 60 s, or loop `sudo nft list set inet filter blocked` every 10 s |
@@ -182,7 +182,7 @@ The `arm`, `hold`, `open` and `off (log)` rows used `--block log`; `off (nft)` a
 - **One daemon at a time:** the guest service and a laptop `idsd.py` answer on the same topics; see section 3, item 9. E3 and QEMU measurements must not overlap.
 - **Imitated FPGA:** no board, so swap blind windows use `SWAP_MS` (default 207 ms); latency and recall are not FPGA measurements.
 - **Latency includes QEMU NAT and MQTT**, not only the model. The p95 tail follows newly blocked sources (E3-QEMU (f)); why the service is slower than a manual nft run is open.
-- **paho patch not on main yet** (section 3, item 5).
+- **paho patch:** merged into `main` on 20 Nov 2026 (PR #7), now also in this branch after rebasing (section 3, item 5).
 
 - **E3 (a) arm absorbs the swap.** With the `arm` fallback, recall is 0.872-0.875 and alert p95 is 4.1-7.3 ms across all 3 swap times and 3 rates, i.e. no change when the swap grows from 34 to 550 ms (11% of records go to the fallback at 550 ms).
 - **E3 (b) hold keeps recall but adds a latency tail.** `hold` recall is the same as `arm` (0.873-0.875 at 550 ms), but alert p95 at swap 550 ms is 305.0-313.7 ms (p50 stays 3.5-5.6 ms). The tail shows in p95 only when more than 5% of records are held: at 550 ms the held share is 10.8-11.0% (p95 jumps), at 207 ms it is 4.0-4.8% (p95 4.9-8.3 ms, no tail).
@@ -307,7 +307,7 @@ Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 12
 
 ## 6. Open TODOs
 
-- TODO: record the repo commit hash for `e3_blind_window.csv` and `e3_qemu.csv` when committed (also `e3_console.log`, `firewall_blocked.png`, `models/pool/manifest.*`, which are untracked).
+- DONE: E3 results are committed on branch `p2/e3-hardening-results`, commit `61ead56` at the time of writing (E3 CSVs, console log, firewall and read-only screenshots, the notes).
 - TODO: find out why the service is slower than a manual nft run (journald logging per line, 300/s rate, and the service sandbox as a hypothesis: hardened p95 was higher than unhardened, see "Hardening, pruning and latency", but this is not isolated). Test one at a time.
 - TODO (future work, not in this freeze): move the `nft` call in `idsd.py` `block()` to a worker thread or a persistent netlink connection.
 - TODO: compare guest and laptop `date` over 2 minutes to check the guest clock (E3-QEMU (g)).
@@ -320,7 +320,7 @@ Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 12
 - TODO: explain the setuid drop 17 -> 9 (unexplained, not credited to hardening).
 - Measurements for P4/P1: `bench/measure_image.sh`, `bench/speed.py`, `systemd-analyze`.
 - Service list for the attack-surface count: TODO paste `systemctl list-units --type=service` from the guest.
-- PR #7 (`p2/paho1-compat` into `main`) is open. TODO: merge it, then update the paho note (section 1, section 3 item 5, section 7), which still says "not merged".
+- DONE: PR #7 (`p2/paho1-compat` into `main`) was merged on 20 Nov 2026; the paho note was updated (section 1, section 3 item 5, section 7). The fix is in `main` and is now also in this branch after rebasing.
 - Fill section 2 with the exact command history.
 - P2 report section.
 
@@ -334,4 +334,5 @@ Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 12
 - **Firewall evidence:** `results/firewall_blocked.png` (53 entries: 8 attackers + 45 benign, `timeout 1m`). On-device pack verification log: `pack OK: /opt/ids/pool-factory version 1 with 6 models`.
 - **Design limitation text for the report (P1):** section 5, first bullet.
 - **Reproduce:** mosquitto with `app/laptop/mosquitto.conf`, boot the image with `petalinux-boot --qemu --kernel`, run `replay.py --n 3000 --rate 300`; only one daemon on the broker.
-- **paho 1.x patch:** branch `p2/paho1-compat` (`b9a26ad`), needs merging.
+- **paho 1.x patch:** PR #7 (`p2/paho1-compat`, `b9a26ad`) merged into `main` on 20 Nov 2026; the fix is in `main` and is now also in this branch after rebasing.
+- **E3 results location:** branch `p2/e3-hardening-results`, commit `61ead56` at the time of writing (E3 CSVs, console log, firewall and read-only screenshots, the notes).
