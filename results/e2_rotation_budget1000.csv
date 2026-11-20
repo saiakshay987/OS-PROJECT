@@ -1,0 +1,15 @@
+defence,attacker,evasion_rate,median_queries,reuse_after_swap,evades_all_members
+"static (one pool member, mean)",A1 query,0.02,11.833333333333334,1.0,0.0
+static (big_fp32),A1 query,0.023,4.0,1.0,nan
+rotate every 1 queries,A2 query (ignores rotation),0.06,37.0,0.203,0.0
+rotate every 10 queries,A2 query (ignores rotation),0.059,73.0,0.197,0.0
+rotate every 50 queries,A2 query (ignores rotation),0.058,78.5,0.194,0.0
+"static (one pool member, mean)",A0 transfer (fp32 surrogate),0.007,0.0,1.0,0.0
+rotating pool,A0 transfer (fp32 surrogate),0.007,0.0,0.007,0.0
+static (big_fp32),A0 transfer (fp32 surrogate),0.019,0.0,1.0,nan
+"static (one pool member, mean)",A0 transfer (2-bit surrogate),0.001,0.0,1.0,0.0
+rotating pool,A0 transfer (2-bit surrogate),0.001,0.0,0.001,0.0
+static (big_fp32),A0 transfer (2-bit surrogate),0.002,0.0,1.0,nan
+"static (one pool member, mean)",A3 pool-aware (surrogate ensemble),0.001,0.0,1.0,0.0
+rotating pool,A3 pool-aware (surrogate ensemble),0.001,0.0,0.001,0.0
+static (big_fp32),A3 pool-aware (surrogate ensemble),0.001,0.0,1.0,nan

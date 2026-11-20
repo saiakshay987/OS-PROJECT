@@ -257,3 +257,72 @@ Features used (share of records; results/e1c_feature_usage.csv; pool = mean over
   (is_ftp_login, ct_ftp_cmd, ct_flw_http_mthd) fixed.
 - Greedy is one deterministic search on one 2,000-record sample; a stronger search could find more.
 - ct_state_ttl after an sttl edit comes from a lookup table, not from the original feature extractor.
+
+## E2: does rotation help against a probing attacker? (20 Nov 2026) - branch p3/e2-rotation
+Command: `python ml/e2_rotation.py --n 1000 --budget 200` (30 s) -> results/e2_rotation.csv. Code base: main at 078ce56.
+Models: the pack v1 files, unchanged since 50d7d8e; P4's signature verifies with keys/pool_pub.pem
+(`OK: version 1, 6 models`). Records: 1,000 attack records from the test split, seed 1 (a different sample from E1/E1c,
+which use seed 0); 832 of them are detected by every model (6 pool members + big_fp32) and are the ones attacked.
+Attackers: A1/A2 = label-only queries, each query one random setting of E1's five knobs (no search), the first 'allowed'
+is the evasion, budget 200 queries per record; A0 = 80-step hill climb on a surrogate (s_fp32 or s_q2), no queries;
+A3 = the same on the ensemble of all four surrogates. Rotation = a uniformly random pool member every K queries.
+Columns: evasion_rate = share of the 832 records with at least one evasion; median_queries = query number of the first
+evasion (mean of the six members' medians in row 1; 0 = no queries); reuse_after_swap = mean share of the six pool members
+the found evasion beats (set to 1.0 by definition for static rows); evades_all_members = share of evasions that beat all six.
+
+| defence | attacker | evasion_rate | median_queries | reuse_after_swap | evades_all_members |
+|---|---|---|---|---|---|
+| static (one pool member, mean) | A1 query | 0.018 | 9.75 | 1.0 | 0.0 |
+| static (big_fp32) | A1 query | 0.023 | 4.0 | 1.0 | - |
+| rotate every 1 query | A2 query (ignores rotation) | 0.052 | 26 | 0.209 | 0.0 |
+| rotate every 10 queries | A2 query | 0.050 | 56 | 0.222 | 0.0 |
+| rotate every 50 queries | A2 query | 0.037 | 75 | 0.194 | 0.0 |
+| static (one pool member, mean) | A0 transfer (fp32 surrogate) | 0.007 | 0 | 1.0 | 0.0 |
+| rotating pool | A0 transfer (fp32 surrogate) | 0.007 | 0 | 0.007 | 0.0 |
+| static (big_fp32) | A0 transfer (fp32 surrogate) | 0.019 | 0 | 1.0 | - |
+| static (one pool member, mean) | A0 transfer (2-bit surrogate) | 0.001 | 0 | 1.0 | 0.0 |
+| rotating pool | A0 transfer (2-bit surrogate) | 0.001 | 0 | 0.001 | 0.0 |
+| static (big_fp32) | A0 transfer (2-bit surrogate) | 0.002 | 0 | 1.0 | - |
+| static (one pool member, mean) | A3 pool-aware (surrogate ensemble) | 0.001 | 0 | 1.0 | 0.0 |
+| rotating pool | A3 pool-aware (surrogate ensemble) | 0.001 | 0 | 0.001 | 0.0 |
+| static (big_fp32) | A3 pool-aware (surrogate ensemble) | 0.001 | 0 | 1.0 | - |
+("-" = NaN in the CSV: big_fp32 is a single model.) The "rotating pool" rows of A0/A3 equal the static mean by construction:
+the script uses the same evasions and sets reuse_after_swap = evasion_rate, so these rows carry no extra information.
+
+The twist (the last column is DERIVED here = evasion_rate x reuse_after_swap; it is NOT in the CSV):
+| defence | succeeds per session | still works after a swap | success x reuse (derived) |
+|---|---|---|---|
+| static pool member | 0.018 | 1.0 (model never changes) | 0.018 |
+| rotate every 1 query | 0.052 | 0.209 | 0.011 |
+| rotate every 10 queries | 0.050 | 0.222 | 0.011 |
+| rotate every 50 queries | 0.037 | 0.194 | 0.007 |
+Against a rotating pool the attacker gets through 2-3x more often per session (it effectively tries several models), but a
+found evasion beats only about 1 in 5 members after the next swap and never all six, so its long-run value is about half.
+Counts are small: 0.052 = 43 records, 0.018 = about 15 per member; the per-session difference is about 4 standard errors.
+
+### What E2 does not show
+- Feature space, not real traffic: knobs are applied to recorded feature values; nothing is replayed through the
+  appliance or idsd.py, and the swap time (SWAP_MS) plays no role.
+- The knob ranges are our assumption, and E2 uses only E1's five knobs. E1c showed that a sender who can also set sttl breaks
+  the pool; E2 with that attacker is not run yet.
+- One dataset from 2015 (UNSW-NB15) with known testbed artefacts (the TTL shortcuts).
+- Fixed pool of six models, no retraining; rotation is a uniform random pick, not idsd.py's poisson or event policies.
+- Simple attacks only: random knob sampling (A1/A2) and an 80-step hill climb (A0/A3); no attacker that learns the rotation
+  schedule or adapts between queries.
+- One run: one record sample (seed 1), one rotation schedule per K, no repeats.
+- reuse_after_swap is measured against the pool members, not against when the next swap actually happens on the appliance.
+
+### E2 with budget 1000
+Command: `python ml/e2_rotation.py --n 1000 --budget 1000` (2 min), run from a scratch folder because the script always
+writes results/e2_rotation.csv; copied to results/e2_rotation_budget1000.csv. Same 832 records and models.
+Budget 200 -> 1000 (results/e2_rotation.csv -> results/e2_rotation_budget1000.csv; last column DERIVED = evasion_rate x
+reuse_after_swap, not in the CSVs):
+| defence | attacker | evasion_rate | median_queries | reuse_after_swap | success x reuse (derived) |
+|---|---|---|---|---|---|
+| static pool member | A1 | 0.018 -> 0.020 | 9.75 -> 11.8 | 1.0 -> 1.0 | 0.018 -> 0.020 |
+| static big_fp32 | A1 | 0.023 -> 0.023 | 4 -> 4 | 1.0 -> 1.0 | - |
+| rotate every 1 query | A2 | 0.052 -> 0.060 | 26 -> 37 | 0.209 -> 0.203 | 0.011 -> 0.012 |
+| rotate every 10 queries | A2 | 0.050 -> 0.059 | 56 -> 73 | 0.222 -> 0.197 | 0.011 -> 0.012 |
+| rotate every 50 queries | A2 | 0.037 -> 0.058 | 75 -> 78.5 | 0.194 -> 0.194 | 0.007 -> 0.011 |
+Five times the queries barely helps (random knob settings saturate, as in E1). A0/A3 rows are identical (no queries);
+evades_all_members stays 0. The twist holds: about 3x more successes per session under rotation, each worth about 1/5.
