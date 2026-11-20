@@ -11,7 +11,8 @@ Branch `cosim/zynq-qemu`. No passwords are recorded here.
 | 2 co-sim device tree | see below |
 | 3 Check A (zynq_demo) | PASS (see below) |
 | 4 Check R | PASS (564/564) |
-| 5 SystemC, 6 Check B, 7 Check C | not started (Step 5 waits for P2's go-ahead) |
+| 5 SystemC program | built (`cosim/sc/ids_cosim`), elaborates; not yet connected to QEMU |
+| 6 Check B, 7 Check C | not started |
 
 ## Setup facts (Step 0)
 
@@ -144,3 +145,20 @@ Negative controls (so the PASS is not vacuous): changing the expected score of v
 `1 mismatches -> FAIL`; replacing vector 2's input with all 255 gives got score=-8 vs expected -20, `FAIL`.
 (Changing only x[1] of vector 1 did not change the score, which just means that byte does not affect that result.)
 This confirms the register map, the byte packing, ap_start/ap_done handshake and signed score readout.
+
+## Step 5: SystemC program with the m0 IP
+
+`cosim/sc/ids_cosim.cc` = `zynq_demo.cc` with: debug device removed; `Vqmlp` (Verilated RTL, `--sc --pins-bv 2`) behind
+`tlm2axilite_bridge<7,32>` via the library's `AXILiteSignals<7,32>` helper (as in
+`libsystemctlm-soc/tests/example-rtl-axi4lite`), mapped with `bus.memmap(0x43C00000, 0x10000-1, ADDRMODE_RELATIVE, -1, bridge.tgt_socket)`
+exactly like the demo mapped its debug device. 100 MHz `sc_clock`, active-low `rst_n` low for 20 cycles (also drives the bridge's
+`resetn`), VCD `ids_cosim.vcd`. Build: `cd cosim/sc && ./build.sh ~/systemctlm-cosim-demo` (log `cosim/logs/sc_build.txt`).
+Run: `cosim/sc/run.sh unix:/tmp/cosim/qemu-rport-_cosim@0 100000`. See `cosim/sc/README.md`.
+
+Things that bit / are worth knowing:
+- Verilator renames the port `interrupt` to `__SYM__interrupt` (reserved C++ word), so the connection uses that name.
+- With Verilator 4.038 `Vqmlp.mk` does not build `verilated.o` by default: `build.sh` makes the targets `Vqmlp__ALL.a verilated.o`.
+- ROM `.dat` files are opened relative to the current directory, so the program must be started from `cosim/rtl` (`run.sh` does that).
+- The IP decodes 7 address bits; the bridge truncates wider addresses, so offsets 0x80-0xFFFF alias onto 0x00-0x7F.
+- Smoke test: starting `ids_cosim` with no QEMU elaborates without errors and waits for the socket (killed by `timeout`), and creates the VCD.
+  The IP has not yet been reached from Linux; that is Check B (Step 6).
