@@ -1,0 +1,15 @@
+defence,attacker,evasion_rate,median_queries,reuse_after_swap,evades_all_members
+"static (one pool member, mean)",A1 query [tierA_no_sttl],0.048,5.5,1.0,0.055
+static (big_fp32),A1 query [tierA_no_sttl],0.032,2.0,1.0,nan
+rotate every 1 queries,A2 query (ignores rotation) [tierA_no_sttl],0.083,9.0,0.309,0.029
+rotate every 10 queries,A2 query (ignores rotation) [tierA_no_sttl],0.082,22.0,0.299,0.015
+rotate every 50 queries,A2 query (ignores rotation) [tierA_no_sttl],0.064,8.0,0.336,0.019
+"static (one pool member, mean)",A0 transfer (fp32 surrogate) [tierA_no_sttl],0.029,0.0,1.0,0.01
+rotating pool,A0 transfer (fp32 surrogate) [tierA_no_sttl],0.029,0.0,0.029,0.01
+static (big_fp32),A0 transfer (fp32 surrogate) [tierA_no_sttl],0.04,0.0,1.0,nan
+"static (one pool member, mean)",A0 transfer (2-bit surrogate) [tierA_no_sttl],0.012,0.0,1.0,0.004
+rotating pool,A0 transfer (2-bit surrogate) [tierA_no_sttl],0.012,0.0,0.012,0.004
+static (big_fp32),A0 transfer (2-bit surrogate) [tierA_no_sttl],0.004,0.0,1.0,nan
+"static (one pool member, mean)",A3 pool-aware (surrogate ensemble) [tierA_no_sttl],0.02,0.0,1.0,0.011
+rotating pool,A3 pool-aware (surrogate ensemble) [tierA_no_sttl],0.02,0.0,0.02,0.011
+static (big_fp32),A3 pool-aware (surrogate ensemble) [tierA_no_sttl],0.013,0.0,1.0,nan
