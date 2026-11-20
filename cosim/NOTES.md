@@ -119,6 +119,14 @@ Address width 7 bits (0x00-0x7F), data width 32. Protocol `ap_ctrl_hs`.
 
 Offsets match `XQMLP_CTRL_ADDR_*` in `cosim/include/xqmlp_hw.h`.
 
+What Janith's HLS run did and did not cover (from his `hls.log`: `csim_design`, `csynth_design`, `export_design`; no `cosim_design`):
+- He only ran the HLS **C simulation** (564 vectors, 0 mismatches). There was no HLS C/RTL co-simulation, so **Check R (this repo's
+  Verilator test) was the first test of the generated RTL**.
+- Clock: target period 10 ns (`create_clock -period 10`, also in `ReleaseNotes.txt`). A synthesis clock estimate of **6.9 ns** was
+  reported to us, but **it cannot be checked from the package** (no csynth report is included). The only "6.9x" in `hls.log` is
+  `Elapsed time: 6.97 seconds`, which is unrelated. In any case an HLS estimate is not post-place-and-route timing: no Vivado
+  implementation or timing closure has been done for this IP.
+
 ## Step 4: Check R (m0 RTL alone in Verilator)
 
 Testbench `cosim/tb/tb_axil.cpp`: holds `ap_rst_n` low for 20 clocks, then drives `s_axi_ctrl_*` with real AXI4-Lite
