@@ -11,8 +11,9 @@ Branch `cosim/zynq-qemu`. No passwords are recorded here.
 | 2 co-sim device tree | see below |
 | 3 Check A (zynq_demo) | PASS (see below) |
 | 4 Check R | PASS (564/564) |
-| 5 SystemC program | built (`cosim/sc/ids_cosim`), elaborates; not yet connected to QEMU |
-| 6 Check B, 7 Check C | not started |
+| 5 SystemC program | built (`cosim/sc/ids_cosim`) |
+| 6 Check B | PASS (`devmem 0x43C00000` = 0x00000004) |
+| 7 Check C | not started |
 
 ## Setup facts (Step 0)
 
@@ -151,7 +152,7 @@ This confirms the register map, the byte packing, ap_start/ap_done handshake and
 `cosim/sc/ids_cosim.cc` = `zynq_demo.cc` with: debug device removed; `Vqmlp` (Verilated RTL, `--sc --pins-bv 2`) behind
 `tlm2axilite_bridge<7,32>` via the library's `AXILiteSignals<7,32>` helper (as in
 `libsystemctlm-soc/tests/example-rtl-axi4lite`), mapped with `bus.memmap(0x43C00000, 0x10000-1, ADDRMODE_RELATIVE, -1, bridge.tgt_socket)`
-exactly like the demo mapped its debug device. 100 MHz `sc_clock`, active-low `rst_n` low for 20 cycles (also drives the bridge's
+exactly like the demo mapped its debug device. `sc_clock` (see Step 6: 10 us period, not 100 MHz), active-low `rst_n` low for 20 cycles (also drives the bridge's
 `resetn`), VCD `ids_cosim.vcd`. Build: `cd cosim/sc && ./build.sh ~/systemctlm-cosim-demo` (log `cosim/logs/sc_build.txt`).
 Run: `cosim/sc/run.sh unix:/tmp/cosim/qemu-rport-_cosim@0 100000`. See `cosim/sc/README.md`.
 
@@ -160,5 +161,31 @@ Things that bit / are worth knowing:
 - With Verilator 4.038 `Vqmlp.mk` does not build `verilated.o` by default: `build.sh` makes the targets `Vqmlp__ALL.a verilated.o`.
 - ROM `.dat` files are opened relative to the current directory, so the program must be started from `cosim/rtl` (`run.sh` does that).
 - The IP decodes 7 address bits; the bridge truncates wider addresses, so offsets 0x80-0xFFFF alias onto 0x00-0x7F.
-- Smoke test: starting `ids_cosim` with no QEMU elaborates without errors and waits for the socket (killed by `timeout`), and creates the VCD.
-  The IP has not yet been reached from Linux; that is Check B (Step 6).
+- Smoke test: starting `ids_cosim` with no QEMU elaborates without errors and waits for the socket.
+  (The decisions below were made while doing Check B.)
+
+## Step 6: Check B (`devmem 0x43C00000 32` from Linux)
+
+Boot exactly as in Check A, but start `cosim/sc/run.sh unix:/tmp/cosim/qemu-rport-_cosim@0 100000` instead of `zynq_demo`.
+Result (`cosim/logs/checkB.txt`): `sudo devmem 0x43C00000 32` -> **0x00000004** (ap_idle set). The SystemC log has no
+`DECODE ERROR` lines and the VCD shows exactly one AXI transaction after reset: that read.
+
+Three problems on the way, all fixed in `ids_cosim.cc` (the RTL was fine each time):
+
+1. **Boot never finished with a 10 ns PL clock.** `ids_cosim` sat at 100% CPU, QEMU idle, no console output for 10 minutes.
+   Cause: with `-sync-quantum 100000` ns SystemC must simulate 10,000 RTL clock cycles (Verilator eval + trace) per quantum,
+   and `-icount 7` makes the boot span hundreds of simulated seconds. Fix: PL clock period 10 us (`QMLP_CLK_NS`, as Xilinx's
+   `zynqmp_demo` uses). **Consequence: the simulated clock is 10 us, not the 100 MHz HLS target.** One inference is about
+   343 clock cycles = ~3.4 ms of simulated time. Cycle counts are valid, wall-clock timing is not claimed.
+2. **VCD grew to 18 GB in ten minutes** (about 28 MB/s) because the demo's `trace()` dumps the whole Zynq model and the
+   clock. Caught at 25 GB free disk, process killed, file deleted. Now only rst_n and the AXI-Lite signals are traced (they
+   change only on real activity; the file is a few KB). The clock is added only with `IDS_COSIM_VCD_CLK=1` for short runs.
+3. **First read gave 0x81 (ap_start + auto_restart set, ap_idle clear) instead of 0x4.** The VCD showed two writes at ~35 s of
+   simulated time (before login): `0x00000000` then `0xFFFFFFFF`, both at register offset 0. The SystemC log had
+   `DECODE ERROR! 41200000` and `...41204`. The image's device tree has an AXI GPIO node at 0x41200000 (original design) and
+   the Linux GPIO driver writes data=0 and tri=0xFFFFFFFF at boot. `iconnect::map_address` sends every unmapped address to
+   **target 0 at offset 0**, and the IP was target 0, so those writes hit AP_CTRL. Fix: a `memory` stub mapped first at
+   0x41200000 (so it is target 0 and absorbs all decode errors). Side result: the IP follows its documented behaviour
+   (writing 0 to AP_CTRL gave 0x0E = done|idle|ready, then 0x04 as done/ready cleared on read).
+
+Caveats: addresses 0x80-0xFFFF inside the IP's window still alias onto 0x00-0x7F (7-bit decode in the IP/bridge).

@@ -3,8 +3,12 @@
 `ids_cosim.cc` is Xilinx's `zynq_demo.cc` with one change: the demo's debug device is replaced by the
 Verilated Vitis HLS RTL of m0 (`cosim/rtl`, top module `qmlp`) at **0x43C00000**, size 0x10000, reached
 through `tlm2axilite_bridge<7, 32>` (relative address mode, same as the demo's debug device).
-Clock 100 MHz (`sc_clock` 10 ns, the HLS target), `ap_rst_n` held low for 20 cycles, `interrupt` unconnected.
-Tracing goes to `ids_cosim.vcd` (AXI signals, clock, reset, plus the demo's own trace of the Zynq model).
+PL clock period 10 us (`QMLP_CLK_NS`), NOT the 100 MHz HLS target: with QEMU's 100 us sync quantum a 10 ns clock
+makes the boot never finish. `ap_rst_n` is held low for 20 cycles, `interrupt` is unconnected.
+A catch-all `memory` stub is mapped first at 0x41200000 (the image's AXI GPIO). `iconnect` sends every unmapped address to
+target 0 at offset 0, so without the stub the GPIO driver's boot writes land on the IP's AP_CTRL (it then reads 0x81).
+Tracing goes to `ids_cosim.vcd` and only covers rst_n and the AXI-Lite signals (a few KB). Do not trace the whole model or
+the clock for a Linux boot (18 GB in ten minutes); `IDS_COSIM_VCD_CLK=1` adds the clock for short runs.
 
 Note: the IP only decodes 7 address bits (0x00-0x7F). The bridge truncates wider addresses, so offsets
 0x80-0xFFFF alias onto the register window. Only use 0x00-0x7F.

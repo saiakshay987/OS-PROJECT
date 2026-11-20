@@ -46,29 +46,43 @@ using namespace std;
 #include "soc/interconnect/iconnect.h"
 #include "tlm-bridges/tlm2axilite-bridge.h"
 #include "test-modules/signals-axilite.h"
+#include "tests/test-modules/memory.h"
 #include "Vqmlp.h"
 #include "soc/xilinx/zynq/xilinx-zynq.h"
 
 #define NR_MASTERS	1
-#define NR_DEVICES	1
+#define NR_DEVICES	2
 
 /* Where the IP sits in the PL address space (GP0 window is 0x40000000-0x7fffffff). */
 #define QMLP_BASE	0x43C00000ULL
 #define QMLP_SIZE	0x10000ULL
 /* qmlp_ctrl_s_axi has C_S_AXI_ADDR_WIDTH = 7 (registers at 0x00-0x7f). */
 #define QMLP_ADDR_WIDTH	7
+/* PL clock period. NOT the 10 ns HLS target: QEMU runs with -icount 7 and a 100 us sync quantum, so
+   a 100 MHz clock would need 10000 simulated RTL cycles per quantum and the boot never finishes.
+   10 us (as Xilinx's zynqmp_demo uses) keeps boot fast; one inference is ~343 cycles = ~3.4 ms.
+   Override at build time with -DQMLP_CLK_NS=... */
+#ifndef QMLP_CLK_NS
+#define QMLP_CLK_NS	10000
+#endif
 
 SC_MODULE(Top)
 {
 	iconnect<NR_MASTERS, NR_DEVICES> bus;
 	xilinx_zynq zynq;
-	sc_clock clk;                    /* 100 MHz, the HLS target period is 10 ns */
+	sc_clock clk;                    /* period QMLP_CLK_NS, see above */
 	sc_signal<bool> rst;             /* active high, for the Zynq PS model */
 	sc_signal<bool> rst_n;           /* active low, for the IP and the bridge */
 	sc_signal<bool> irq_unused;
 	AXILiteSignals<QMLP_ADDR_WIDTH, 32> signals;
 	tlm2axilite_bridge<QMLP_ADDR_WIDTH, 32> bridge;
 	Vqmlp dut;                       /* Verilated Vitis HLS RTL */
+	/* Catch-all stub. iconnect sends every address that matches no mapped target (it prints
+	   "DECODE ERROR!") to TARGET 0 at offset 0. The image's device tree has an AXI GPIO at
+	   0x41200000 whose driver writes 0 and 0xFFFFFFFF at boot; with the IP as target 0 those writes
+	   landed on AP_CTRL and started the IP with auto_restart (it read back 0x81). So this stub is
+	   mapped FIRST (= target 0) and absorbs them. */
+	memory gpio_stub;
 
 	SC_HAS_PROCESS(Top);
 
@@ -82,24 +96,29 @@ SC_MODULE(Top)
 	void pull_reset_n(void) {
 		/* Active-low reset for the IP, held for 20 clock cycles. */
 		rst_n.write(false);
-		wait(20 * 10, SC_NS);
+		wait(20 * QMLP_CLK_NS, SC_NS);
 		rst_n.write(true);
 	}
 
 	Top(sc_module_name name, const char *sk_descr, sc_time quantum) :
 		bus("bus"),
 		zynq("zynq", sk_descr),
-		clk("clk", sc_time(10, SC_NS)),
+		clk("clk", sc_time(QMLP_CLK_NS, SC_NS)),
 		rst("rst"),
 		rst_n("rst_n"),
 		irq_unused("irq_unused"),
 		signals("signals"),
 		bridge("bridge"),
-		dut("dut")
+		dut("dut"),
+		gpio_stub("gpio_stub", sc_time(1, SC_US), 0x10000)
 	{
 		m_qk.set_global_quantum(quantum);
 
 		zynq.rst(rst);
+
+		/* Target 0: the stub (also the destination of all decode errors). */
+		bus.memmap(0x41200000ULL, 0x10000 - 1,
+				ADDRMODE_RELATIVE, -1, gpio_stub.socket);
 
 		/* Same mapping style as the demo's debug device (relative offsets). */
 		bus.memmap(QMLP_BASE, QMLP_SIZE - 1,
@@ -176,9 +195,12 @@ int sc_main(int argc, char* argv[])
 	}
 
 	trace_fp = sc_create_vcd_trace_file("ids_cosim");
-	trace(trace_fp, *top, top->name());
-	sc_trace(trace_fp, top->clk, "clk");
+	/* The demo traced the whole Zynq model plus our clock: ~28 MB/s, 18 GB in ten minutes during a
+	   Linux boot. Only trace the AXI-Lite signals and reset (they change only on real activity).
+	   The clock is added only on request, for short debug runs: IDS_COSIM_VCD_CLK=1. */
 	sc_trace(trace_fp, top->rst_n, "rst_n");
+	if (getenv("IDS_COSIM_VCD_CLK"))
+		sc_trace(trace_fp, top->clk, "clk");
 	top->signals.Trace(trace_fp);
 
 	sc_start();
