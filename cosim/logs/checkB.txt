@@ -1,0 +1,20 @@
+# Check B: m0 RTL behind QEMU, read of 0x43C00000 (2026-11-21)
+
+## Guest (first command after login+sudo)
+xilinx-zc702-20241:~$ clear
+xilinx-zc702-20241:~$ sudo devmem 0x43C00000 32
+0x00000004
+xilinx-zc702-20241:~$
+
+## SystemC side: DECODE ERROR lines: 0
+
+## ids_cosim stdout
+
+        SystemC 2.3.3-Accellera --- Mar 17 2022 13:55:26
+        Copyright (c) 1996-2018 by all Contributors,
+        ALL RIGHTS RESERVED
+
+Info: (I702) default timescale unit used for tracing: 1 ps (ids_cosim.vcd)
+
+## QEMU command
+[INFO] qemu-system-aarch64 -M arm-generic-fdt-7series -machine linux=on  -serial /dev/null -serial mon:stdio -display none  -dtb /home/sharwan/Desktop/OS-PROJECT/cosim/system-cosim.dtb -kernel /home/sharwan/plx/ids-os/images/linux/zImage -initrd /home/sharwan/plx/ids-os/images/linux/rootfs.cpio.gz.u-boot -gdb tcp:localhost:9000  -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot ... -machine-path /tmp/cosim -icount 7 -sync-quantum 100000 

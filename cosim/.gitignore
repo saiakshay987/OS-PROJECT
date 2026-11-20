@@ -1,0 +1,5 @@
+obj_dir/
+*.vcd
+ids_cosim
+*.o
+*.d
