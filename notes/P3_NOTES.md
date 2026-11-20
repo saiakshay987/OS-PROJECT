@@ -102,6 +102,7 @@ m3.npz gave `REJECTED: m3.npz: hash mismatch`.
 - Single seed per model; no repeat runs.
 - The 6 models were trained on UNSW-NB15 flow records encoded to 61 bytes (common/features.py); no live-traffic evaluation.
 - Tell the team to pin `pytest<9` in requirements.txt (not changed by P3).
+- E1c (sender-controlled attacker) replaces the unconstrained-byte experiment.
 
 ## Stage 2: E1 transfer experiment and the stage-2 model (20 Nov 2026) - branch p3/e1-e2-results
 Code base: main at b3137f5 (model pack v1) plus the new ml/e1_random_baseline.py, committed together with these
@@ -173,3 +174,86 @@ The 1000-step hill climb reaches 0.089 and 0.025, i.e. most of that ceiling.
   Quantised surrogates and ensembles stay at or below random.
 - No record evaded all six pool models (upper bound 0.18% per run, inside these knob ranges).
 - Widening the knob ranges would need a change to common/features.py (frozen); not done.
+
+## E1c: sender-controlled attacker (20 Nov 2026) - branch p3/e1-e2-results
+Command: `python ml/e1c_sender_controlled.py --n 2000 --trials 5` (7 min, laptop CPU). Current pool (QAT_K2=2.0), same
+models, same 2,000 attack records (load_test, seed 0) and same cell definition as E1; 1,629 records are detected by all six.
+Files: results/e1c_tier{A,A_sttl_only,A_no_sttl,B}_k{1,2,3,all}.csv (E1 layout + actions_changed), results/e1c_summary.csv,
+results/e1c_feature_usage.csv, results/e1c_sttl_refused.csv.
+
+Feature classification: from the published UNSW-NB15 feature definitions plus relations checked in our data, NOT from a
+file in the repo (common/features.py lists names only). Checked in data/unsw_prep.npz (all 257,673 records):
+tcprtt = synack + ackdat for 100%; ct_state_ttl is determined by (state, sttl, dttl) for 99.95% (141 records differ,
+56 combinations); in this 2,000-record sample the defender-split lookup reproduces ct_state_ttl for 99.85%.
+- Tier A (sender sets it, 9 actions): E1's five knobs with E1's ranges (dur x1-8, sbytes x1-4, spkts x1-3, sinpkt x0.5-4,
+  sjit x0.5-4); sttl in {31, 62, 64, 254}; swin = values in >= 1% of normal TCP records of the defender split (only 255
+  qualifies); ackdat x1-4 (TCP only); trans_depth +0..+3 (HTTP only).
+- Tier B (19 actions) = A + dbytes, dpkts, response_body_len x0.1-10 + the 7 connection counts (ct_srv_src, ct_dst_ltm,
+  ct_src_dport_ltm, ct_dst_sport_ltm, ct_dst_src_ltm, ct_src_ltm, ct_srv_dst) +0..+10, capped at the defender-split maximum.
+- Ablations of tier A: "sttl only" (1 action) and "tier A without sttl" (8 actions).
+- Recomputed after every edit: rate, sload, smean, dload (E1's apply_knobs, unchanged); then in ml/: rate and dmean and dload
+  after dbytes/dpkts changes, tcprtt = synack + ackdat, ct_state_ttl from the (state, sttl, dttl) lookup (defender split).
+  Asserted: an unedited record is rebuilt exactly (raw values and encoded bytes); one-hot bytes never change; budget held.
+- Fixed (never edited): dttl, synack, dloss, dinpkt, djit, dwin, sloss, is_sm_ips_ports, is_ftp_login, ct_ftp_cmd,
+  ct_flw_http_mthd.
+- k = number of sender actions (edited features); derived features follow and do not count. "all" = every action of the tier.
+  Search: greedy coordinate descent on the source model's score (7 grid values per multiplier; deterministic).
+  Random baseline: k random actions with random grid values, seeds 1-5. no_edits row = all 0 everywhere (asserted).
+- All ranges are our assumptions.
+
+sttl edits refused because the (state, sttl, dttl) combination never occurs in the defender split (results/e1c_sttl_refused.csv):
+31: 713 of 2,000 records (35.7%), 62: 31 (1.6%), 64: 713 (35.7%), 254: 0. This limitation favours the defender.
+
+Summary (results/e1c_summary.csv; evades_ALL_pool = worst source, records out of 1,629, one-sided 95% upper bound):
+| tier | k | pool diag | pool off-diag | random pool_mean +- std | s_fp32 -> pool | evades_ALL_pool (upper 95%) | worst source | actions used |
+|---|---|---|---|---|---|---|---|---|
+| A | 1 | 0.420 | 0.378 | 0.024 +- 0.003 | 0.389 | 259 = 15.9% (17.5%) | m1 | 0.93 |
+| A | 2 | 0.498 | 0.399 | 0.047 +- 0.005 | 0.441 | 335 = 20.6% (22.3%) | big_fp32 | 1.47 |
+| A | 3 | 0.512 | 0.404 | 0.071 +- 0.004 | 0.474 | 426 = 26.2% (28.0%) | s_fp32 | 1.67 |
+| A | all | 0.518 | 0.405 | 0.200 +- 0.003 | 0.491 | 452 = 27.7% (29.6%) | s_fp32 | 1.75 |
+| A sttl only | any | 0.386 | 0.372 | 0.170 +- 0.008 | 0.385 | 257 = 15.8% (17.3%) | m1 | 0.78 |
+| A without sttl | 1 | 0.062 | 0.027 | 0.006 +- 0.001 | 0.029 | 3 = 0.2% (0.5%) | m1 | 0.54 |
+| A without sttl | 2 | 0.077 | 0.030 | 0.011 +- 0.001 | 0.049 | 9 = 0.6% (1.0%) | s_fp32 | 0.74 |
+| A without sttl | 3 | 0.081 | 0.032 | 0.015 +- 0.001 | 0.058 | 11 = 0.7% (1.1%) | s_fp32 | 0.80 |
+| A without sttl | all | 0.084 | 0.032 | 0.031 +- 0.002 | 0.063 | 14 = 0.9% (1.3%) | s_fp32 | 0.84 |
+| B | 1 | 0.529 | 0.492 | 0.027 +- 0.002 | 0.489 | 401 = 24.6% (26.4%) | s_q3 | 0.98 |
+| B | 2 | 0.659 | 0.562 | 0.050 +- 0.001 | 0.597 | 575 = 35.3% (37.3%) | m3 | 1.84 |
+| B | 3 | 0.700 | 0.588 | 0.070 +- 0.002 | 0.661 | 675 = 41.4% (43.5%) | m3 | 2.42 |
+| B | all | 0.729 | 0.600 | 0.268 +- 0.005 | 0.743 | 881 = 54.1% (56.1%) | s_fp32 | 3.26 |
+"actions used" = mean over the six pool sources (greedy stops when no action helps). The sttl-only rows are identical for
+every k (one action).
+
+Features used (share of records; results/e1c_feature_usage.csv; pool = mean over m0-m5):
+- A, k=1: pool sttl 0.707, ackdat 0.106, dur 0.059, sinpkt 0.026, sbytes 0.018, spkts 0.012; s_fp32 sttl 0.817, sinpkt 0.074, dur 0.060.
+- A, k=all: pool sttl 0.759, sbytes 0.267, spkts 0.236, dur 0.195, ackdat 0.159, sinpkt 0.108; s_fp32 spkts 0.965, sbytes 0.945,
+  sttl 0.851, sinpkt 0.762, sjit 0.371, dur 0.225, ackdat 0.188.
+- A without sttl, k=all: pool dur 0.216, ackdat 0.172, spkts 0.164, sbytes 0.154, sinpkt 0.108, sjit 0.024.
+- B, k=1: pool sttl 0.643, ct_dst_src_ltm 0.238, dbytes 0.034, ct_srv_dst 0.030; s_fp32 sttl 0.648, ct_dst_src_ltm 0.172, dbytes 0.129.
+- B, k=all: pool sttl 0.736, ct_dst_src_ltm 0.674, ct_srv_dst 0.476, ct_srv_src 0.203, spkts 0.201, sbytes 0.192, dbytes 0.185;
+  s_fp32 ct_srv_dst 0.999, sbytes 0.988, spkts 0.871, sttl 0.852, ct_srv_src 0.807, sinpkt 0.762, ct_src_ltm 0.705.
+- swin and trans_depth were (almost) never used (swin can only become 255; trans_depth only applies to HTTP records).
+
+### What E1c shows
+- With sender-controlled features only (tier A), the pool is partly broken: from k=1, 15.9% of the attacks that all six
+  models detect evade all six at once, rising to 27.7% (s_fp32, the attacker's own surrogate) with all 9 actions.
+- The break comes from sttl. sttl alone gives 15.8% evading all six; tier A without sttl gives at most 0.9% (upper bound 1.3%).
+  A random sttl value alone already removes 17.0% of pool detections (no search).
+- Transfer is far above random wherever sttl is allowed (tier A k=1: off-diagonal 0.378 vs random 0.024 +- 0.003). Without
+  sttl it is above random for k=1-3 (0.027 vs 0.006, 0.030 vs 0.011, 0.032 vs 0.015) but equal to random with all 8 actions
+  (0.032 vs 0.031 +- 0.002), and small in absolute terms.
+- Tier B adds the reply sizes and the connection counts and breaks more: 24.6% at k=1 up to 54.1% evading all six; off-diagonal
+  0.49-0.60. Besides sttl it mostly uses ct_dst_src_ltm and ct_srv_dst (extra connections) and dbytes.
+- The pool's off-diagonal is close to its diagonal (tier A all: 0.405 vs 0.518), so an evasion found on one member mostly works
+  on the others: no sign of useful diversity once sttl can change.
+
+### What E1c does not show
+- Whether the edited flows still carry out the attack (e.g. slower, padded or with extra connections); not tested.
+- Realistic traffic: all ranges are our assumptions; edits are applied to recorded feature values, not replayed packets
+  through the appliance.
+- sttl is a known testbed artefact (common/features.py SHORTCUTS); the result says these models rely on a value the sender
+  sets. Retraining with --drop-shortcuts and repeating E1/E1c is NOT done (open item).
+- Limitations that favour the defender: sttl edits refused for unseen (state, sttl, dttl) combinations (35.7% of records for
+  31 and 64); swin limited to 255; ct_* can only increase and are capped; dpkts cannot reach 0; ftp/http client features
+  (is_ftp_login, ct_ftp_cmd, ct_flw_http_mthd) fixed.
+- Greedy is one deterministic search on one 2,000-record sample; a stronger search could find more.
+- ct_state_ttl after an sttl edit comes from a lookup table, not from the original feature extractor.
