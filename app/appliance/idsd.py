@@ -99,7 +99,8 @@ def on_message(c, u, msg):
     else:
         d = json.loads(msg.payload); t0 = t_alert.pop(d["seq"], None); st["verdicts"] += 1
         if t0: log(f"VERDICT seq {d['seq']} {d['cat']} conf {d['conf']:.2f} round-trip {1000 * (time.time() - t0):.1f} ms")
-cli = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="ids-appliance")
+try: cli = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="ids-appliance")
+except AttributeError: cli = mqtt.Client(client_id="ids-appliance")   # paho-mqtt 1.x, as in the PetaLinux image
 if E("MQTT_USER"): cli.username_pw_set(E("MQTT_USER"), E("MQTT_PASS"))
 cli.on_connect, cli.on_message = on_connect, on_message
 cli.connect_async(a.broker, 1883, 30); cli.loop_start()
