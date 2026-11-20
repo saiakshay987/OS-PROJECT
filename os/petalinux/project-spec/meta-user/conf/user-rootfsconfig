@@ -1,0 +1,11 @@
+#Note: Mention Each package in individual line
+#These packages will get added into rootfs menu entry
+
+CONFIG_gpio-demo
+CONFIG_peekpoke
+CONFIG_python3
+CONFIG_python3-numpy
+CONFIG_python3-paho-mqtt
+CONFIG_nftables
+CONFIG_openssl-bin
+CONFIG_ids-app

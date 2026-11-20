@@ -1,0 +1,11 @@
+[Unit]
+Description=Writable data (tmpfs in QEMU; third SD partition on the board)
+
+[Mount]
+What=tmpfs
+Where=/data
+Type=tmpfs
+Options=nodev,nosuid,size=64M
+
+[Install]
+WantedBy=local-fs.target

@@ -1,0 +1,25 @@
+[Unit]
+Description=Rotating-model intrusion detector
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# settings: image defaults, then /data overrides ('-' = fine if missing; later file wins)
+EnvironmentFile=/etc/ids/ids.conf
+EnvironmentFile=-/data/ids.conf
+WorkingDirectory=/opt/ids
+# '+' runs this one step as root: load the firewall rules (creates the 'blocked' set) before the detector starts
+ExecStartPre=+/usr/sbin/nft -f /etc/nftables.conf
+ExecStart=/usr/bin/python3 /opt/ids/idsd.py
+User=ids
+Group=ids
+# the only privilege the daemon needs: editing the firewall's 'blocked' set
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+Restart=on-failure
+RestartSec=2
+# P4 adds sandboxing lines via a drop-in (security/ids.hardening.conf)
+
+[Install]
+WantedBy=multi-user.target
