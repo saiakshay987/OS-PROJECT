@@ -1,0 +1,6 @@
+AP_CTRL after reset = 0x00000004 (ap_idle bit2 set)
+564 vectors, 0 mismatches (193479 clock cycles) -> PASS
+
+real	0m0.052s
+user	0m0.051s
+sys	0m0.001s
