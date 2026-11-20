@@ -1,0 +1,10 @@
+Live chain on the Buildroot image in QEMU (transcribed from the console, 20 Nov 2026 about 22:13 IST)
+Setup: mosquitto -c app/laptop/mosquitto.conf on the laptop; image booted with ~/boot_ids.sh (BROKER=10.0.2.2, BLOCK=nft, ROTATE=poisson/30 s, pack v1).
+Command (laptop): .venv/bin/python app/laptop/replay.py --broker 127.0.0.1 --n 3000 --rate 200
+sent 3000 records in 15.0 s (200/s), 1912 attacks
+alerts 1697  TP 1656 FP 41 FN 256 TN 1047  recall 0.866  FPR 0.038
+record sent -> alert seen: median 16.6 ms, p95 118.3 ms (same-clock machines only)
+appliance status: recs 3000, alerts 1697, blocks 38, swaps 37, fallback_recs 0, unclassified 0, held 0, verdicts 0, member m5, version 1, pool 6, backend arm, rotate poisson, uptime 853.0
+Command (guest, right after the run): nft list set inet filter blocked
+Result: 38 addresses with timeout 1m: 8 attacker sources (10.0.9.1 to 10.0.9.8) and 30 benign sources (10.0.0.x, caused by false positives).
+Not run: stage-2 verdict (ids/verdict counter 0, stage2_server.py not running).
