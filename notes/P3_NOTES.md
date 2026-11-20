@@ -326,3 +326,64 @@ reuse_after_swap, not in the CSVs):
 | rotate every 50 queries | A2 | 0.037 -> 0.058 | 75 -> 78.5 | 0.194 -> 0.194 | 0.007 -> 0.011 |
 Five times the queries barely helps (random knob settings saturate, as in E1). A0/A3 rows are identical (no queries);
 evades_all_members stays 0. The twist holds: about 3x more successes per session under rotation, each worth about 1/5.
+
+## E2 with the sender-controlled attacker (20 Nov 2026) - branch p3/e2-rotation
+Commands: `python ml/e2_rotation.py --n 1000 --budget 200 --attacker tierA` -> results/e2_rotation_tierA.csv and
+`... --attacker tierA_no_sttl` -> results/e2_rotation_tierA_no_sttl.csv (about 35 s each). Same 832 records (seed 1, detected
+by every model) and models as E2. Tier A = E1c's 9 sender actions (E1's five knobs, sttl in {31, 62, 64, 254} where the
+(state, sttl, dttl) combination exists in the defender split, swin, ackdat, trans_depth); tier A without sttl = 8 actions.
+A1/A2: each query = one random setting of every tier action (E1c's random-edit rule, refusals included). A0/A3: E1c's greedy
+over all tier actions on the surrogate (A3: minimises the worst score over the four surrogates). Rotation as in E2.
+
+Code change: the threat model moved unchanged from ml/e1c_sender_controlled.py into ml/sender_actions.py (shared by E1c and
+E2); ml/e2_rotation.py got `--attacker {knobs, tierA, tierA_no_sttl}` (default knobs). Checks: the default reproduces
+results/e2_rotation.csv md5-identical; rerunning E1c reproduces all 19 e1c CSVs content-identical to the committed versions
+(the only byte difference was CRLF vs LF line endings: the script writes CRLF on Windows, git stores LF).
+
+Tier A (results/e2_rotation_tierA.csv; last column DERIVED = evasion_rate x reuse_after_swap, not in the CSV):
+| defence | attacker | evasion_rate | median_queries | reuse_after_swap | evades_all_members | success x reuse (derived) |
+|---|---|---|---|---|---|---|
+| static pool member (mean) | A1 query | 0.480 | 2.5 | 1.0 | 0.345 | 0.480 |
+| static big_fp32 | A1 query | 0.475 | 2 | 1.0 | - | 0.475 |
+| rotate every 1 query | A2 query | 0.638 | 2 | 0.573 | 0.215 | 0.366 |
+| rotate every 10 queries | A2 query | 0.629 | 2 | 0.586 | 0.210 | 0.369 |
+| rotate every 50 queries | A2 query | 0.508 | 4 | 0.736 | 0.343 | 0.374 |
+| static pool member / rotating pool | A0 fp32 surrogate | 0.450 | 0 | 1.0 / 0.450 | 0.266 | 0.450 / 0.202 |
+| static big_fp32 | A0 fp32 surrogate | 0.475 | 0 | 1.0 | - | 0.475 |
+| static pool member / rotating pool | A0 2-bit surrogate | 0.375 | 0 | 1.0 / 0.375 | 0.201 | 0.375 / 0.141 |
+| static big_fp32 | A0 2-bit surrogate | 0.436 | 0 | 1.0 | - | 0.436 |
+| static pool member / rotating pool | A3 surrogate ensemble | 0.397 | 0 | 1.0 / 0.397 | 0.177 | 0.397 / 0.158 |
+| static big_fp32 | A3 surrogate ensemble | 0.438 | 0 | 1.0 | - | 0.438 |
+
+Tier A without sttl (results/e2_rotation_tierA_no_sttl.csv):
+| defence | attacker | evasion_rate | median_queries | reuse_after_swap | evades_all_members | success x reuse (derived) |
+|---|---|---|---|---|---|---|
+| static pool member (mean) | A1 query | 0.048 | 5.5 | 1.0 | 0.055 | 0.048 |
+| static big_fp32 | A1 query | 0.032 | 2 | 1.0 | - | 0.032 |
+| rotate every 1 query | A2 query | 0.083 | 9 | 0.309 | 0.029 | 0.026 |
+| rotate every 10 queries | A2 query | 0.082 | 22 | 0.299 | 0.015 | 0.025 |
+| rotate every 50 queries | A2 query | 0.064 | 8 | 0.336 | 0.019 | 0.022 |
+| static pool member / rotating pool | A0 fp32 surrogate | 0.029 | 0 | 1.0 / 0.029 | 0.010 | 0.029 / 0.001 |
+| static big_fp32 | A0 fp32 surrogate | 0.040 | 0 | 1.0 | - | 0.040 |
+| static pool member / rotating pool | A0 2-bit surrogate | 0.012 | 0 | 1.0 / 0.012 | 0.004 | 0.012 / 0.000 |
+| static big_fp32 | A0 2-bit surrogate | 0.004 | 0 | 1.0 | - | 0.004 |
+| static pool member / rotating pool | A3 surrogate ensemble | 0.020 | 0 | 1.0 / 0.020 | 0.011 | 0.020 / 0.000 |
+| static big_fp32 | A3 surrogate ensemble | 0.013 | 0 | 1.0 | - | 0.013 |
+As in E2, the "rotating pool" rows of A0/A3 equal the static mean by construction (reuse_after_swap = evasion_rate).
+
+### What this shows
+- With sttl (tier A), rotation does not protect: the attacker gets through on 48% of attacks against a fixed member and
+  51-64% against a rotating pool, within a median of 2-4 queries; 21-34% of the evasions found under rotation beat all six
+  members, so no swap stops them. The long-run value (derived) drops only from 0.48 to about 0.37. Without any queries, the
+  attacker's own float surrogate already gets 45% through (26.6% of those beat all six).
+- Without sttl, the picture matches the knob-only E2: 4.8% static vs 6.4-8.3% per session under rotation, but each evasion beats
+  only about 1 in 3 members afterwards and 1.5-2.9% beat all six, so the derived long-run value halves (0.048 -> 0.022-0.026).
+  Rotation helps in that sense. Transfer from surrogates stays at or below 2.9%.
+- The difference between the two runs is sttl alone, consistent with E1c.
+
+### What it does not show
+- The E2 limitations above all apply (feature space only, our ranges, UNSW-NB15 2015, fixed pool, uniform rotation, simple
+  random/greedy attacks, one sample, reuse measured against pool members).
+- The E1c limitations apply (sttl refusals, swin limited to 255, ftp/http client features fixed, lookup-based ct_state_ttl,
+  attack functionality after editing not tested).
+- Small counts for tier A without sttl: 0.048 = about 40 records.
