@@ -1,0 +1,15 @@
+# Raw timestamps of the full demo run, 2026-11-21 (seconds since the epoch, laptop clock). See cosim/DEMO.md.
+# t_qemu_start: tmux new-session qemu; t_login_prompt: 'login:' seen; t_user_done: user said logged in + sudo -v;
+# t_paste_*: paste_to_guest.sh; t_devmem_*: sudo devmem 0x43C00000 32 (sudo cached); t_test_*: cosim_test.py to SUMMARY line
+t_qemu_start 1795206408.708678828
+t_socket_ready 1795206409.720789487
+t_sysc_started 1795206409.727309005
+t_login_prompt 1795206757.296567726
+t_user_done 1795206909.373313491
+t_paste_start 1795206910.378696150
+t_paste_end 1795206953.445617467
+t_devmem_start 1795206961.418102564
+t_devmem_end 1795206962.442454352
+t_test_start 1795206971.484804177
+t_test_end 1795207017.728601838
+t_qemu_quit 1795207040.477438828
