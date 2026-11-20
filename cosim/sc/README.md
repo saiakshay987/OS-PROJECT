@@ -45,3 +45,14 @@ petalinux-boot qemu --kernel --dtb <repo>/cosim/system-cosim.dtb \
 ```
 
 In Linux: `sudo devmem 0x43C00000 32` should print a value with bit 2 (ap_idle) set.
+
+## Waveform and debug signals
+
+`ids_cosim.vcd` (written to the directory the program runs in, i.e. `cosim/rtl`) always contains `rst_n`, the AXI-Lite signals
+and three debug signals copied out of the Verilated RTL: `ap_idle` (= `qmlp.ap_idle`), `ap_start` (= `ctrl_s_axi.int_ap_start`) and
+`ap_done` (= `ap_CS_fsm[8]`, which is how `qmlp.v` defines it). They change only on real activity, so the file stays small.
+
+The clock is recorded only when `IDS_COSIM_VCD_CLK=1`, and then only in a window that opens at the first AXI write and lasts
+`IDS_COSIM_VCD_CLK_CYCLES` clock cycles (default 20000 = 0.2 s simulated, about 8 inferences). A whole Linux boot is about 1600 s
+of simulated time, so dumping the clock all the time would be several GB. `cosim/demo/trim_vcd.py` cuts the first inference out of
+the result. See `cosim/DEMO.md` for the full demo, expected output and the GTKWave signal list.

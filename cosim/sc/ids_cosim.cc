@@ -84,6 +84,33 @@ SC_MODULE(Top)
 	   mapped FIRST (= target 0) and absorbs them. */
 	memory gpio_stub;
 
+	/* Debug signals for the waveform (VCD only; they do not drive anything).
+	   ap_idle / ap_start / ap_done are internal to the RTL, so they are copied out of the Verilated model:
+	   ap_idle = qmlp.ap_idle, ap_start = ctrl_s_axi.int_ap_start, ap_done = ap_CS_fsm[8] (qmlp.v: ap_done = state9). */
+	sc_signal<bool> dbg_ap_idle, dbg_ap_start, dbg_ap_done;
+	/* The clock is only dumped inside a short window, because a Linux boot is ~1600 s of simulated time
+	   (3e8 clock edges). With IDS_COSIM_VCD_CLK=1 the window opens at the first AXI write (= the first record's
+	   input) and stays open IDS_COSIM_VCD_CLK_CYCLES clock cycles (default 20000 = 0.2 s simulated). */
+	sc_signal<bool> dbg_clk;
+	bool win_enabled, win_open;
+	uint64_t win_cycles, win_cycles_max;
+
+	void dbg_clk_proc(void) {
+		if (clk.read()) {	/* rising edge: window bookkeeping */
+			if (win_enabled && !win_open && win_cycles == 0 && signals.awvalid.read())
+				win_open = true;
+			if (win_open && ++win_cycles > win_cycles_max)
+				win_open = false;
+		}
+		dbg_clk.write(win_open ? clk.read() : false);
+	}
+
+	void dbg_state_proc(void) {	/* sampled on the falling edge, when the state of the last rising edge has settled */
+		dbg_ap_idle.write(dut.qmlp__DOT__ap_idle & 1);
+		dbg_ap_start.write(dut.qmlp__DOT__ctrl_s_axi_U__DOT__int_ap_start & 1);
+		dbg_ap_done.write((dut.qmlp__DOT__ap_CS_fsm >> 8) & 1);
+	}
+
 	SC_HAS_PROCESS(Top);
 
 	void pull_reset(void) {
@@ -110,7 +137,10 @@ SC_MODULE(Top)
 		signals("signals"),
 		bridge("bridge"),
 		dut("dut"),
-		gpio_stub("gpio_stub", sc_time(1, SC_US), 0x10000)
+		gpio_stub("gpio_stub", sc_time(1, SC_US), 0x10000),
+		dbg_ap_idle("ap_idle"), dbg_ap_start("ap_start"), dbg_ap_done("ap_done"), dbg_clk("dbg_clk"),
+		win_enabled(getenv("IDS_COSIM_VCD_CLK") != NULL), win_open(false), win_cycles(0),
+		win_cycles_max(getenv("IDS_COSIM_VCD_CLK_CYCLES") ? strtoull(getenv("IDS_COSIM_VCD_CLK_CYCLES"), NULL, 10) : 20000)
 	{
 		m_qk.set_global_quantum(quantum);
 
@@ -159,6 +189,13 @@ SC_MODULE(Top)
 
 		SC_THREAD(pull_reset);
 		SC_THREAD(pull_reset_n);
+
+		SC_METHOD(dbg_clk_proc);
+		sensitive << clk.posedge_event() << clk.negedge_event();
+		dont_initialize();
+		SC_METHOD(dbg_state_proc);
+		sensitive << clk.negedge_event();
+		dont_initialize();
 	}
 
 private:
@@ -196,11 +233,14 @@ int sc_main(int argc, char* argv[])
 
 	trace_fp = sc_create_vcd_trace_file("ids_cosim");
 	/* The demo traced the whole Zynq model plus our clock: ~28 MB/s, 18 GB in ten minutes during a
-	   Linux boot. Only trace the AXI-Lite signals and reset (they change only on real activity).
-	   The clock is added only on request, for short debug runs: IDS_COSIM_VCD_CLK=1. */
+	   Linux boot. Only trace reset, the AXI-Lite signals and the three ap_* debug signals (they change only on
+	   real activity). The clock is dumped only in a short window, and only on request: IDS_COSIM_VCD_CLK=1. */
 	sc_trace(trace_fp, top->rst_n, "rst_n");
+	sc_trace(trace_fp, top->dbg_ap_idle, "ap_idle");
+	sc_trace(trace_fp, top->dbg_ap_start, "ap_start");
+	sc_trace(trace_fp, top->dbg_ap_done, "ap_done");
 	if (getenv("IDS_COSIM_VCD_CLK"))
-		sc_trace(trace_fp, top->clk, "clk");
+		sc_trace(trace_fp, top->dbg_clk, "clk");
 	top->signals.Trace(trace_fp);
 
 	sc_start();

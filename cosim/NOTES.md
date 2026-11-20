@@ -229,3 +229,10 @@ remote-port co-simulation and matched the Python reference bit for bit on all 64
 It is **not silicon**: timing (the simulated PL clock is 10 us, not the 100 MHz target), the real PS-PL bridge, bitstream loading and
 `fpgautil` are untested. `app/appliance/fpga_regs.py` (UIO path, `score()` loop) has not been run; `cosim_test.py` uses `/dev/mem`
 directly. Only m0 was simulated, not m1..m5. Nothing here checks the daemon (`idsd.py`) on `BACKEND=fpga`.
+
+## Demo run (2026-11-21)
+
+`cosim/DEMO.md` has the commands, expected output, a talk track and the GTKWave guide. One full timed run on the final `ids_cosim`
+(with the new debug signals and windowed clock): boot to login 348.6 s, `devmem` 1.0 s (returned 0x00000004), `cosim_test.py` 46.2 s,
+**64/64 MATCH**, VCD 1.3 MB (84 KB after `demo/trim_vcd.py`), no DECODE errors. This re-ran Checks B and C on the rebuilt binary.
+One inference as seen in the waveform: ap_start high and ap_idle low for 284 clock cycles, ap_done for one cycle.

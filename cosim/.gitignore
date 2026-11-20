@@ -3,3 +3,4 @@ obj_dir/
 ids_cosim
 *.o
 *.d
+!demo/one_inference.vcd
