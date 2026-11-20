@@ -1,0 +1,115 @@
+{
+ "version": 1,
+ "members": [
+  {
+   "file": "m0.npz",
+   "sha256": "39f718dd1fb06b09c0eccac97876ad92b39e995e44a72c424f80bbf93cb5d5de",
+   "meta": {
+    "name": "m0",
+    "hidden": [
+     64,
+     64
+    ],
+    "wb": 2,
+    "ab": 2,
+    "seed": 0,
+    "frac": 1.0,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0010000000000000000000000000000011111111111111111111011011111011"
+  },
+  {
+   "file": "m1.npz",
+   "sha256": "cb1e4a581549bb7ebae5db24fd145c1428d8391a3b6df819e108790f04cac93f",
+   "meta": {
+    "name": "m1",
+    "hidden": [
+     64,
+     64
+    ],
+    "wb": 2,
+    "ab": 2,
+    "seed": 1,
+    "frac": 0.7,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0000000000000000000000000000000010111111111111111111011011111011"
+  },
+  {
+   "file": "m2.npz",
+   "sha256": "59d24e441f54457309a6bb9ddf27ff739f652b87f1031b97b887a61cbf5fb6cf",
+   "meta": {
+    "name": "m2",
+    "hidden": [
+     64,
+     32
+    ],
+    "wb": 3,
+    "ab": 3,
+    "seed": 2,
+    "frac": 1.0,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0000000000000000000000000000000010111111111111111111011011111011"
+  },
+  {
+   "file": "m3.npz",
+   "sha256": "f4a84bcf31c0650121ce3f61a433277cb27ff89ffcdd040522923c4e7b2093f5",
+   "meta": {
+    "name": "m3",
+    "hidden": [
+     32,
+     32
+    ],
+    "wb": 4,
+    "ab": 4,
+    "seed": 3,
+    "frac": 0.7,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0010000000000000000000000000000011111111111111111111011011111011"
+  },
+  {
+   "file": "m4.npz",
+   "sha256": "f96ab9efde45375632f92c1aa40b429492168d628640acf5f35880872bb46543",
+   "meta": {
+    "name": "m4",
+    "hidden": [
+     96,
+     48
+    ],
+    "wb": 2,
+    "ab": 4,
+    "seed": 4,
+    "frac": 0.7,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0010000000000000000000000000000011111111111111111111011111111011"
+  },
+  {
+   "file": "m5.npz",
+   "sha256": "02dea82dfc031a7dd8a608c28815d30ba204ce559d7390badcfebf8bd4a73ad3",
+   "meta": {
+    "name": "m5",
+    "hidden": [
+     48,
+     48,
+     24
+    ],
+    "wb": 4,
+    "ab": 2,
+    "seed": 5,
+    "frac": 1.0,
+    "group": "pool",
+    "drop_shortcuts": false
+   },
+   "canary": "0000000000000000000000000000000010111111111111101111011011111011"
+  }
+ ],
+ "canary_sha256": "0709bb21bb86e3f10024dcf8dec64ce1c09f7444455bd842344127d3372554dd"
+}
