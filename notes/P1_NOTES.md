@@ -52,3 +52,20 @@ size 4.05 MB / 128-145 MB/s = 28-32 ms floor (use 34 ms with overhead); 207 ms =
 - Kernel fragment review against P2/P4 .config, timing-leak analysis (needs P2 jitter numbers).
 - Nothing loaded on a board: register offsets, fpga_regs.py, dtbo, real swap time all untested.
 - AXI-Lite input is deliberately slow; streaming interface is future work.
+
+## 2026-11-20 kernel fragment findings (from P2/P4 messages and notes)
+- P4's `os/buildroot/external/board/ids/linux-extra.cfg` shows `kernel/ids.cfg` lacked `CONFIG_NF_TABLES_IPV4` and `CONFIG_NFT_COUNTER`; both added to the fragment.
+- P2: `ProtectHostname=` in the hardening drop-in has no effect on the PetaLinux kernel because `CONFIG_UTS_NS` is missing. Added `CONFIG_NAMESPACES=y` and `CONFIG_UTS_NS=y` to the fragment. NOT rebuilt: neither image has been confirmed to contain them.
+- PetaLinux sizes (P2, QEMU, build 3): rootfs.cpio.gz 44,571,450 B; rootfs.ext4 194,957,312 B; image.ub 49,159,852 B; kernel 6.6.10-xilinx-v2024.1. P2 gave no before/after for the fragment, so no trimming effect can be claimed yet. Still needed: final `.config` from P2 and P4, and the grep check.
+
+## Timing-leak analysis (estimate, not a measurement)
+Signal: Vitis HLS latency of the six FPGA designs (table above). With the default design point the spread is m4 39.27 us vs m3 1.35 us = 37.9 us. With m4 built as `fast` all six lie between 1.35 and 2.04 us, a spread of 0.69 us. The default design point is therefore the leaky one, and it is leaky only because of m4.
+Noise (P2, notes/P2_NOTES.md, QEMU service run at 300/s): alert latency median 21.4 ms, p95 195.0 ms. Laptop daemon with `arm` fallback: p50 3.5-5.6 ms, p95 4.1-7.3 ms. The signal is therefore about 1/560 (default) to 1/30,000 (fast) of the QEMU median.
+Averaging N samples shrinks the standard error by sqrt(N). Crude sample count to tell two models apart (two-sample test, 5% two-sided, 80% power, N = 2 * 2.8^2 * sigma^2 / delta^2 per model), with sigma estimated as (p95 - median)/1.645:
+| Noise | sigma | delta 37.9 us (default) | delta 0.69 us (fast) |
+|---|---|---|---|
+| QEMU service | ~106 ms | ~1.2e8 samples | ~3.7e11 samples |
+| Laptop, arm | ~1.0 ms | ~1.2e4 samples | ~3.5e7 samples |
+Assumptions that make these rough: sigma from percentiles assumes a normal shape, but the real tail is heavy (bursts of newly blocked sources, P2 E3-QEMU (f)); samples assumed independent; attacker assumed to see the full record-to-alert time.
+Limits: (1) the demo runs the models as CPU integer code in QEMU, not on the FPGA, so the FPGA latencies are not what a client would observe; CPU inference time per model has not been measured. (2) HLS numbers are estimates, with AXI-Lite transfer time not included. (3) Must be re-measured from a second machine once the board exists. (4) A visible leak already exists in the swap itself: with the `hold` fallback, alert p95 rises to 206 ms at 500/s in QEMU (P2), so swap timing is observable with far fewer samples than model identity. (5) The blocked/allowed answers are an easier channel than timing (P4's E4).
+Standard fix: delay every answer to the slowest model's latency. Cost: everyone gets the slowest model's speed, i.e. 39.27 us instead of 1.35 us at the default design point, but only 2.04 us if m4 is built `fast`. Building m4 `fast` removes most of the signal at no cost in speed, for about 2.1x m4's LUTs.
