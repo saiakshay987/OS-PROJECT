@@ -376,7 +376,9 @@ sudo journalctl -u ids --no-pager | grep -c VERDICT
 sudo journalctl -u ids --no-pager | grep VERDICT | awk '{print $9}' | sort | uniq -c
 ```
 
-**Open:** the Buildroot live chain and verdict step are still waiting on P4.
+**Buildroot:** P4 ran the live chain on the Buildroot image in QEMU (3,000 records, recall 0.866, FPR 0.038, 38 blocks, 30 of them benign hosts; see `results/live_chain_buildroot_qemu.txt` on main). Verdicts were 0 there because no stage 2 server was running. P4 and P3 do a joint run with stage 2 on the morning of 21 Nov 2026; P4 adds the verdict counts to their notes.
+
+**Open:** stage 2 accuracy has not been compared with true labels.
 
 ## 6. Open TODOs
 
@@ -394,7 +396,7 @@ sudo journalctl -u ids --no-pager | grep VERDICT | awk '{print $9}' | sort | uni
 - Measurements for P4/P1: `bench/measure_image.sh`, `bench/speed.py`, `systemd-analyze`.
 - Service list for the attack-surface count: TODO paste `systemctl list-units --type=service` from the guest.
 - DONE: PR #7 (`p2/paho1-compat` into `main`) was merged on 20 Nov 2026; the paho note was updated (section 1, section 3 item 5, section 7). The fix is in `main` and is now also in this branch after rebasing.
-- DONE: live chain on PetaLinux including the verdict step (20 Nov 2026), see "Live chain with P3". Stage 2 accuracy not checked against true labels. TODO (open, waiting on P4): the same live chain and verdict step on the Buildroot image.
+- DONE: live chain on PetaLinux including the verdict step (20 Nov 2026), see "Live chain with P3". DONE: P4 ran the live chain on Buildroot in QEMU without stage 2 (verdicts 0); joint run with stage 2 planned for the morning of 21 Nov 2026, P4 adds the verdict counts. TODO (open): stage 2 accuracy not compared with true labels.
 - Fill section 2 with the exact command history.
 - P2 report section.
 
