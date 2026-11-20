@@ -1,0 +1,19 @@
+Demo rehearsal on the Buildroot image (measured in QEMU (emulated ARM), not on the board). 21 Nov 2026 about 04:00-04:30 IST.
+Transcribed from the console and the laptop terminal. Fresh guest boot, mosquitto on the laptop (app/laptop/mosquitto.conf), no stage 2.
+
+1. Boot: login prompt reached; "systemctl is-active ids" = active 20 s after login; mount shows "/dev/mmcblk0p2 on / type ext4 (ro,relatime)";
+   drop-ins listed under ids.service.d: 10-firewall.conf, 20-restart.conf, hardening.conf.
+2. Setting ROTATE in the guest: echo ROTATE=off > /data/ids.conf; systemctl restart ids  ->  journal: "idsd up: backend=arm input=mqtt rotate=off/30.0s pool=6".
+   (/data is tmpfs and writable, the root is read-only.) Journal SWAP lines over the whole rotate=off period: 0.
+3. echo ROTATE=poisson > /data/ids.conf; echo ROTATE_S=5 >> /data/ids.conf; systemctl restart ids  ->  SWAP lines about every 4-5 s:
+   "SWAP -> m1 (timer), blind window 207 ms, fallback=arm", "SWAP -> m3 (timer) ...", "SWAP -> m5 (timer) ...".
+   Each restart counts against StartLimitBurst=3 in 300 s (20-restart.conf): at most two restarts per 5 minutes without "systemctl reset-failed ids".
+4. app/laptop/attack_demo.py --broker 127.0.0.1 --replay-s 30 with ROTATE=off (probes wait 80 ms for an alert: time.sleep(0.08) in blocked()):
+   seed 0: no evasion within 300 probes;  seed 1: no evasion;  seed 4: no evasion;
+   seed 2: "EVASION found after 27 probes" then "replayed 31 times: got through 1 (3%), blocked 30";
+   seed 5: "EVASION found after 24 probes" then "replayed 31 times: got through 1 (3%), blocked 30".
+   With ROTATE=off the model is fixed (m5), so a real evasion would get through every time. It did not. The same seed 2 with the
+   wait changed from 0.08 s to 0.5 s (a copy of the script outside the repo, --budget 120, --replay-s 20) found NO evasion in 120 probes.
+   So the "evasions" above are most likely records whose alert arrived later than 80 ms in the emulated guest, not real evasions
+   (likely, not proven). The intended demo outcome (the replay gets through every time with rotation off) was NOT reproduced on this image.
+   Owner of attack_demo.py: P3. Not run with rotation on, because the rotation-off baseline did not hold.

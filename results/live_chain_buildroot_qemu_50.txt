@@ -1,0 +1,30 @@
+Clean live chain on the Buildroot image in QEMU (measured in QEMU (emulated ARM), not on the board). 21 Nov 2026 about 03:35 IST.
+Transcribed from the replay output and the guest console; raw copies: replay output and ids/status JSON below.
+
+Setup: image rebuilt 20 Nov 22:27 (images/sdcard.img, uImage 4,677,360 B). Freshly booted guest (a new copy of sdcard.img, QEMU started
+by the same command line as os/buildroot/qemu/boot_ids.sh: xilinx-zynq-a9, -m 512, 1 vCPU) so the appliance counters start at 0.
+Broker: the laptop's mosquitto (app/laptop/mosquitto.conf), BROKER=10.0.2.2, BLOCK=nft, ROTATE=poisson/30 s, SWAP_MS=207, FALLBACK=arm, pack v1.
+No stage-2 server was running (no torch / models/stage2.pt on this laptop), so verdicts = 0 by design.
+Status before the run (ids/status, one message): recs 0, alerts 0, blocks 0, swaps 2, verdicts 0, uptime 34.2 s.
+
+Command (laptop, repo root): .venv/bin/python app/laptop/replay.py --broker 127.0.0.1 --n 3000 --rate 50
+sent 3000 records in 60.0 s (50/s), 1912 attacks
+alerts 1710  TP 1666 FP 44 FN 246 TN 1044  recall 0.871  FPR 0.040
+(the replay latency line is deliberately left out: team rule, replay latency is not reported)
+Status after the run (ids/status, counters since boot, so equal to this run's deltas):
+{"recs": 3000, "alerts": 1710, "blocks": 52, "swaps": 7, "fallback_recs": 124, "unclassified": 0, "held": 0, "verdicts": 0, "member": "m5", "version": 1, "pool": 6, "in_swap": false, "backend": "arm", "rotate": "poisson", "pack": "/opt/ids/pool-factory", "uptime": 96.8}
+
+Processed fraction: recs 3000 of 3000 sent = 100% (counter was 0 before the run).
+Records handled by the ARM fallback model during swaps: 124 of 3000 (4.1%).
+Blocks: 52 in total since boot. The split between attacker and benign sources was not captured (the nft set had expired by the time it
+was read, so no count from it is used).
+Not reported: record-sent-to-alert latency (project rule: replay latency is only valid on same-clock machines and is not used in the report).
+
+Other facts read from the same fresh guest (console):
+- uname -r 6.6.70-xilinx; nproc 1; MemTotal 508,408 kB; ls /proc/self/ns lists: cgroup ipc mnt net pid pid_for_children user uts.
+- mount: /dev/mmcblk0p2 on / type ext4 (ro,relatime); randomize_va_space 2; systemctl is-system-running: running; systemctl --failed: none;
+  ids and nftables active.
+- systemd-analyze: Startup finished in 4.068 s (kernel) + 52.758 s (userspace) = 56.826 s. The 20 Nov run gave 29.516 s
+  (results/image_buildroot_qemu.csv): the same image varies by almost 2x between boots on this laptop, so QEMU boot time is only an upper-bound indication.
+- sh /opt/ids/bench/measure_image.sh buildroot-fresh:
+  buildroot-fresh,6.6.70-xilinx,211.43,31,96,58,0,7,NA,2,"Startup finished in 4.068s (kernel) + 52.758s (userspace) = 56.826s "
