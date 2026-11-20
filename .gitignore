@@ -31,3 +31,10 @@ hw/**/vivado*.log
 .vscode/
 .idea/
 .DS_Store
+hw/hls/build_fast/
+hw/vivado/
+hw/xsa/
+vivado.jou
+vivado.log
+hw/vivado_*.log
+hw/bit/*.bit
