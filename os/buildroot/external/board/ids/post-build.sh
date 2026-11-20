@@ -90,3 +90,7 @@ sed -i '/^\/dev\/root[[:space:]]/ s/\brw\b/ro/' "$T/etc/fstab"
 # dropbear: no password logins (-s), no root logins (-w); the unit reads DROPBEAR_ARGS from /etc/default/dropbear
 install -d "$T/etc/default"
 echo 'DROPBEAR_ARGS="-s -w"' > "$T/etc/default/dropbear"
+
+# benchmark helpers inside the image (the firewall blocks downloads, so ship them)
+install -d "$T/opt/ids/bench"
+install -m 0755 "$R/bench/measure_image.sh" "$R/bench/speed.py" "$T/opt/ids/bench/"
