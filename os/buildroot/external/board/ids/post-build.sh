@@ -86,3 +86,7 @@ fi
 
 # fstab-ro: force the root entry read-only (the skeleton package keeps writing rw)
 sed -i '/^\/dev\/root[[:space:]]/ s/\brw\b/ro/' "$T/etc/fstab"
+
+# dropbear: no password logins (-s), no root logins (-w); the unit reads DROPBEAR_ARGS from /etc/default/dropbear
+install -d "$T/etc/default"
+echo 'DROPBEAR_ARGS="-s -w"' > "$T/etc/default/dropbear"
