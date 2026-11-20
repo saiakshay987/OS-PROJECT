@@ -250,7 +250,7 @@ Listening sockets:
 
 Firewall: the nftables ruleset drops all inbound traffic except tcp 22 (rate limited), udp 5555 and icmp. Only ssh is reachable from the network, but the other services are closed **by the firewall, not by removing them**. They are still running and listening inside the guest.
 
-Masked (done on the current image, build 3, by the mask loop in `ids-app.bb`, which symlinks each unit to `/dev/null` in `/etc/systemd/system`): 18 units: `inetd.busybox.service`, `rpcbind.service`, `rpcbind.socket`, `nfs-statd.service`, `nfsserver.service`, `nfs-server.service`, `nfs-mountd.service`, `proc-fs-nfsd.mount`, `tcf-agent.service`, `busybox-klogd.service`, `busybox-syslog.service`, `syslog.socket`, `getty@tty1.service`, `systemd-resolved.service`, `systemd-userdbd.service`, `systemd-userdbd.socket`, `sshd.socket`, `sshd.service` (serial console only). `systemd-timesyncd` is not in the mask list, so it is kept running. P4's sshd drop-in stays in the repo in case remote login is needed. TODO: confirm with P4.
+Masked (done on the current image, build 3, by the mask loop in `ids-app.bb`, which symlinks each unit to `/dev/null` in `/etc/systemd/system`): 18 units: `inetd.busybox.service`, `rpcbind.service`, `rpcbind.socket`, `nfs-statd.service`, `nfsserver.service`, `nfs-server.service`, `nfs-mountd.service`, `proc-fs-nfsd.mount`, `tcf-agent.service`, `busybox-klogd.service`, `busybox-syslog.service`, `syslog.socket`, `getty@tty1.service`, `systemd-resolved.service`, `systemd-userdbd.service`, `systemd-userdbd.socket`, `sshd.socket`, `sshd.service` (serial console only). `systemd-timesyncd` is not in the mask list, so it is kept running. P4's sshd drop-in stays in the repo in case remote login is needed. DONE: P4 confirmed on 20 Nov 2026 that masking sshd on the PetaLinux image is fine. The Buildroot image runs dropbear with `-s -w` (keys only, no root login) and has no key installed, so both images are console-only.
 
 ## Image measurements after hardening and pruning, QEMU (emulated ARM, NOT hardware speed)
 
@@ -285,11 +285,60 @@ Running services after hardening and pruning (9): dbus, ids, serial-getty@ttyPS0
 
 The setuid drop (17 -> 9) is **unexplained and not credited to hardening**: masking a unit does not delete files, and the baseline run may have been measured differently. The 9 files now: `unix_chkpwd`, `dbus-daemon-launch-helper`, `sudo`, `newgrp.shadow`, `mount.nfs`, `umount.util-linux`, `su.shadow`, `mount.util-linux`, `busybox.suid`.
 
+### Model speed in the guest (QEMU, emulated ARM, not hardware speed)
+
+Measured 20 Nov 2026 with `bench/speed_pct.py`, service stopped during the run. Microseconds per record, median / p95; each call's time is divided by the batch size; 1000 calls at batch 1, 300 at batch 64, 50 at batch 1024 (so p95 at 1024 rests on 50 calls).
+
+| Model | Batch 1 | Batch 64 | Batch 1024 |
+|---|---|---|---|
+| m0 | 768.0 / 894.9 | 44.4 / 47.7 | 64.4 / 71.3 |
+| m1 | 778.1 / 920.9 | 46.0 / 49.3 | 65.8 / 75.3 |
+| m2 | 767.7 / 933.2 | 35.9 / 38.9 | 46.4 / 47.5 |
+| m3 | 753.6 / 895.4 | 24.0 / 26.9 | 20.2 / 20.9 |
+| m4 | 788.8 / 930.6 | 54.4 / 57.9 | 77.2 / 91.4 |
+| m5 | 1187.2 / 1399.3 | 44.3 / 47.8 | 34.3 / 35.3 |
+
+- Call overhead dominates at batch 1 (median 754 to 1187 us).
+- Batch 64 is 14 to 31 times cheaper per record than batch 1.
+- At batch 1024 m3 is fastest (20 us) and m4 slowest (77 us); m0, m1, m2 and m4 get slower at 1024, m3 and m5 faster.
+- p95 is 17 to 22% above the median at batch 1.
+- An earlier run with the original `bench/speed.py` (mean only) gave batch-1 means 15 to 18% lower (m0: 663.5 us vs 777.5 us), so treat differences under about 15% between runs as noise.
+- The QEMU E3 rates (100 and 500 records/s) stay below every model's single-record rate (the slowest, m5, scores about 840 records/s).
+
+### Kernel config of the image
+
+From `build/tmp/work/.../linux-xlnx-zc702-standard-build/.config`: `NF_TABLES=y`, `NF_TABLES_IPV4=y`, `OVERLAY_FS=y`, `FPGA=y`; `SOUND`, `DRM` and `NAMESPACES` are not set; `UTS_NS`, `NFT_COUNTER` and `FPGA_MGR` have no line at all in the `.config`.
+
+The `ids.cfg` used by the recipe (`project-spec/meta-user/recipes-kernel/linux/linux-xlnx/ids.cfg`, pulled in by `linux-xlnx_%.bbappend` via `SRC_URI`) is byte-identical to `kernel/ids.cfg` on `origin/main`. Neither contains `NAMESPACES`, `UTS_NS`, `NFT_COUNTER` or `EXPERT` lines. No remote branch has `UTS_NS` in `kernel/ids.cfg` (checked 20 Nov 2026).
+
+Kernel sizes of the current build: `zImage` 4,560,016 B, `vmlinux` 13,468,952 B, `image.ub` 49,159,852 B. Boot times 13.4 s (before pruning) and 9.6 s (after) are before and after pruning, not before and after the kernel fragment; there is no fragment comparison.
+
+### Service design and packages
+
+`ids.service` runs as `User=ids` with `AmbientCapabilities=CAP_NET_ADMIN`, `Restart=on-failure`, `RestartSec=2`.
+
+Packages added by us:
+
+- `python3`: runs `idsd.py`.
+- `python3-numpy`: integer MLP arithmetic.
+- `python3-paho-mqtt`: MQTT client.
+- `nftables`: ruleset and blocked set.
+- `openssl-bin`: model-pack signature check.
+- `ids-app`: our recipe.
+
+`rootfs.manifest` has 229 lines in total (229 packages); there is no earlier package count to compare with. The 229 is a Yocto `rootfs.manifest` count; the Buildroot image has 27 packages counted by a different method (P4's number). They are not a like-for-like comparison.
+
+DONE: the `Restart=` policy and the per-package justification (the two items above).
+
+### Recipes in the repo
+
+The PetaLinux recipe files are in `main` under `os/petalinux/project-spec/meta-user/` with a README. The lab password hash in `petalinuxbsp.conf` is the placeholder `<SHA512_HASH_OF_LAB_PASSWORD>`; the real password is shared with the team directly and is not in the repo.
+
 ## Read-only root, hardening and pruning (QEMU, 20 Nov 2026)
 
 **Read-only root.** The image has `EXTRA_IMAGE_FEATURES += "read-only-rootfs"`. Evidence: `results/read_only_root.png`. Caveat: in QEMU the root is an initramfs in RAM, so this shows that the read-only mechanism works, not a persistent SD/EXT4 root. `/data` is a 64M tmpfs (`nodev,nosuid`) via `data.mount`; on the board it would be a third SD partition. Login problem and fix: section 3, item 10.
 
-**Hardening** (P4's `ids.hardening.conf` and `90-hardening.sysctl.conf`, installed by the `ids-app` recipe). The `ids` service starts, runs as user `ids`, logs `pack OK: /opt/ids/pool-factory version 1 with 6 models`, and can still add nft rules (`results/firewall_blocked_hardened.png`). **Finding:** `ProtectHostname` has no effect because the trimmed kernel lacks `CONFIG_UTS_NS`. P1 and P4 should know.
+**Hardening** (P4's `ids.hardening.conf` and `90-hardening.sysctl.conf`, installed by the `ids-app` recipe). The `ids` service starts, runs as user `ids`, logs `pack OK: /opt/ids/pool-factory version 1 with 6 models`, and can still add nft rules (`results/firewall_blocked_hardened.png`). **Finding:** `ProtectHostname` has no effect because the kernel was built without namespaces (`CONFIG_NAMESPACES` not set, so `UTS_NS` is absent) and `kernel/ids.cfg` on main does not enable them. P1 and P4 were told on 20 Nov 2026.
 
 **Service pruning.** 18 units are masked with `/dev/null` symlinks in `/etc/systemd/system`, installed by the `ids-app` recipe. sshd is masked, so the only way in is the serial console; P4's sshd drop-in stays in the repo and is not installed. Follow-up not done: `/sbin/mount.nfs` is still installed and setuid although NFS is masked; removing the NFS packages from the image would be cleaner.
 
@@ -315,12 +364,13 @@ Pruning did not change latency. Hardened vs unhardened p95 differs by roughly 12
 - `results/read_only_root.png` shows `touch /etc/x` failing with "Read-only file system" and `mount` reporting `rootfs on / type rootfs (ro)`.
 - TODO: on the board, `/data` should be a third SD partition (`os/petalinux/fstab.example`); not tested, no board.
 - TODO (follow-up, not done): remove the NFS packages from the image; `/sbin/mount.nfs` is still installed and setuid although NFS is masked.
-- TODO: tell P1 and P4 that `ProtectHostname` has no effect (kernel lacks `CONFIG_UTS_NS`).
+- DONE: told P1 and P4 on 20 Nov 2026 that `ProtectHostname` has no effect (kernel built without namespaces: `CONFIG_NAMESPACES` not set, so `UTS_NS` is absent; `kernel/ids.cfg` on main does not enable them). TODO: P1 to push their fragment; not rebuilt or verified.
 - TODO: the guest clock is wrong (journal timestamps read Nov 08) because QEMU has no time sync. Do not quote guest dates; see also E3-QEMU (g).
 - TODO: explain the setuid drop 17 -> 9 (unexplained, not credited to hardening).
 - Measurements for P4/P1: `bench/measure_image.sh`, `bench/speed.py`, `systemd-analyze`.
 - Service list for the attack-surface count: TODO paste `systemctl list-units --type=service` from the guest.
 - DONE: PR #7 (`p2/paho1-compat` into `main`) was merged on 20 Nov 2026; the paho note was updated (section 1, section 3 item 5, section 7). The fix is in `main` and is now also in this branch after rebasing.
+- TODO (open question to P4, sent 20 Nov 2026, unanswered): who runs the live chain on the Buildroot image, and what should the ids/verdict step show? In P2's runs the verdict counter stayed 0, so P2 can only claim replay -> alert -> nft block on PetaLinux.
 - Fill section 2 with the exact command history.
 - P2 report section.
 
