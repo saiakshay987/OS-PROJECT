@@ -5,7 +5,7 @@ Setup: image rebuilt 20 Nov 22:27 (images/sdcard.img, uImage 4,677,360 B). Fresh
 by the same command line as os/buildroot/qemu/boot_ids.sh: xilinx-zynq-a9, -m 512, 1 vCPU) so the appliance counters start at 0.
 Broker: the laptop's mosquitto (app/laptop/mosquitto.conf), BROKER=10.0.2.2, BLOCK=nft, ROTATE=poisson/30 s, SWAP_MS=207, FALLBACK=arm, pack v1.
 No stage-2 server was running (no torch / models/stage2.pt on this laptop), so verdicts = 0 by design.
-Status before the run (ids/status, one message): recs 0, alerts 0, blocks 0, swaps 2, verdicts 0, uptime 34.2 s.
+Status before the run (ids/status, one message): recs 0, alerts 0, blocks 0, swaps 2, verdicts 0. (The raw status JSON also has an uptime field; it is unreliable because the guest clock steps forward and is not used.)
 
 Command (laptop, repo root): .venv/bin/python app/laptop/replay.py --broker 127.0.0.1 --n 3000 --rate 50
 sent 3000 records in 60.0 s (50/s), 1912 attacks

@@ -8,12 +8,12 @@ Every expected output below comes from a run on this laptop, with the file named
 | Risk | Evidence | What to do |
 |---|---|---|
 | `attack_demo.py` does **not** give the intended result on this image. With `ROTATE=off` it reported "EVASION found after 24-27 probes" and then "got through 1 (3%), blocked 30" (seeds 2 and 5); other seeds found no evasion. A copy with a 0.5 s alert wait (instead of 80 ms) found no evasion for seed 2. Most likely the 80 ms wait is shorter than the emulated guest's alert latency, so a late alert looks like an evasion (not proven). | `results/demo_rehearsal_buildroot_qemu.txt` | **Do not run `attack_demo.py` live.** Show the E2 table (`results/e2_rotation.csv`) instead, and say the live attacker demo needs a longer wait window. TODO(P3): make the wait a `--wait` option and re-test. |
-| Counters are cumulative since the daemon started. | the counters are the `st` dict in `app/appliance/idsd.py`, which starts at zero with the daemon; P2 notes | Reboot the guest (new `boot_ids.sh` run) before any run whose numbers you will quote. Read the counters from `ids/status`, not from the replay's last printed line (P2 saw a stale `verdicts 0` there; `notes/P2_NOTES.md`). |
+| Counters are cumulative since the daemon started; the `uptime` field of `ids/status` is unreliable (the guest clock steps forward), do not quote it. | the counters are the `st` dict in `app/appliance/idsd.py`, which starts at zero with the daemon; P2 notes | Reboot the guest (new `boot_ids.sh` run) before any run whose numbers you will quote. Read the counters from `ids/status`, not from the replay's last printed line (P2 saw a stale `verdicts 0` there; `notes/P2_NOTES.md`). |
 | Records are lost if the guest is overloaded: 200 records/s with stage 2 processed only about 1,340-1,580 of 3,000, so the recall of those runs (0.38-0.43) is not a detector result. | team message, not in a file; the clean 200/s run without stage 2 is `results/live_chain_buildroot_qemu.txt` | Use `--rate 50`. Check `recs` equals the number sent before quoting recall. |
 | First-alert blocking blocks most benign hosts too (52 blocks in the clean 50/s run; the attacker/benign split of those was not captured. The earlier 200/s run had 8 attacker and 30 benign addresses). | `results/live_chain_buildroot_qemu_50.txt`, `results/live_chain_buildroot_qemu.txt`, `notes/P2_NOTES.md` section 5 | Say it is a design limitation, not a bug. |
 | Boot time varies: 29.5 s and 56.8 s for the same image on this laptop. | `results/image_buildroot_qemu.csv`, `results/live_chain_buildroot_qemu_50.txt` | Boot the guest at least 2 minutes before the slot, never during it. |
 | 3 restarts of `ids` within 300 s put the unit in the failed state (`StartLimitBurst=3`). | `os/buildroot/external/board/ids/post-build.sh` | Restart at most twice; recover with `systemctl reset-failed ids; systemctl start ids`. |
-| Stage 2 needs `torch` and `models/stage2.pt` (not in git, P3's file). Neither exists on this laptop. | `ls models/stage2.pt` fails; `python -c "import torch"` fails in `.venv` | Run stage 2 on P3's laptop (GPU) or skip it (section 6). |
+| Stage 2 needs `torch` and `models/stage2.pt` (not in git, P3's file). Neither exists on this laptop (P3's laptop has them and has already run stage 2 against the guest). | `ls models/stage2.pt` fails; `python -c "import torch"` fails in `.venv` | Run stage 2 on P3's laptop (GPU) or skip it (section 6). |
 | MQTT has no authentication or TLS in the demo broker. | `app/laptop/mosquitto.conf` (`allow_anonymous true`) | Say so; `security/mqtt-auth.md` shows the fix. |
 
 ## 1. Prerequisites (T-15 min)
@@ -60,11 +60,10 @@ sent 3000 records in 60.0 s (50/s), 1912 attacks
 alerts 1710  TP 1666 FP 44 FN 246 TN 1044  recall 0.871  FPR 0.040
 ```
 and `ids/status` after: `recs 3000, alerts 1710, blocks 52, swaps 7, fallback_recs 124, verdicts 0` (no stage 2 in that run).
-Rotation is random, so expect small differences (recall about 0.87, FPR about 0.04). Two earlier 50/s runs gave recall 0.769 and 0.827
-(FPR 0.036, 0.043) but their `recs` counter was cumulative, so their processed fraction was never verified: do not quote them.
+Rotation is random, so expect small differences (recall about 0.87, FPR about 0.04). Two stage-2 runs at 50/s by P3 gave recall 0.769 and 0.827
+(FPR 0.036, 0.043), reported in P3's replay output and not saved in a results file; the appliance counters were cumulative and not reset between them, so their processed fraction was never verified: do not quote them as detector results.
 If recall comes out below about 0.85, first check `recs` against the 3,000 sent. Do **not** quote the replay's latency line.
-With stage 2 running, `verdicts` should rise towards the number of alerts; that run has **not** been done on the Buildroot image
-(TODO(P3, P4): joint run). Stage-2 accuracy against the true labels has never been measured, so show the verdict names only as "the step runs".
+With stage 2 running, `verdicts` should rise towards the number of alerts. Stage 2 **has** run against the Buildroot image (P3's laptop, 20-21 Nov, about 1,900 verdicts by the status counter) but without a reset of the counters; a clean stage-2 run on a freshly booted guest has not been recorded (TODO(P3, P4): commit P3's replay output; repeat once on a fresh guest). Stage-2 accuracy against the true labels has never been measured, so show the verdict names only as "the step runs".
 
 ## 4. Five-minute timed script
 Pre-conditions done: guest booted and checked (section 1), broker up, stage 2 running if available, three terminals visible:

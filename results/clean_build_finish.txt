@@ -1,0 +1,75 @@
+== collected 2026-11-21 06:01:54 IST
+start: 2026-11-21 04:24:02 IST
+command: JOBS=$(nproc) BUILDROOT_DIR=$HOME/br-clean/buildroot OUT=$HOME/br-clean/out $HOME/clean-clone/os/buildroot/build.sh all
+free space on / before: 30294 MiB; now: 15597 MiB
+STATUS: (false positive: the pgrep pattern matched the watchdog helper; no make was running)
+STATUS: final notes NOT in log
+log last modified (end of build.sh all): 2026-11-21 05:54:34.789493041 +0530
+log: lines with 'Error' or '***':
+5435:make[2]: [Makefile:379: libext2fs.dvi] Error 127 (ignored)
+5439:make[2]: [Makefile:363: install-doc-libs] Error 1 (ignored)
+5442:make[2]: [Makefile:365: install-doc-libs] Error 1 (ignored)
+11701:*** Makeinfo is too old. Info documentation will not be built.
+16385:*** This configuration is not supported in the following subdirectories:
+== image files
+total 331664
+-rw-r--r--. 1 dokkaebi dokkaebi    136220 2026-11-21 05:48 boot.bin
+-rw-r--r--. 1 dokkaebi dokkaebi  33554432 2026-11-21 05:54 boot.vfat
+-rw-r--r--. 1 dokkaebi dokkaebi       117 2026-11-21 05:54 extlinux.conf
+-rw-r--r--. 1 dokkaebi dokkaebi 167772160 2026-11-21 05:54 rootfs.ext2
+lrwxrwxrwx. 1 dokkaebi dokkaebi        11 2026-11-21 05:54 rootfs.ext4 -> rootfs.ext2
+-rw-r--r--. 1 dokkaebi dokkaebi 107591680 2026-11-21 05:54 rootfs.tar
+-rw-r--r--. 1 dokkaebi dokkaebi 201327104 2026-11-21 05:54 sdcard.img
+lrwxrwxrwx. 1 dokkaebi dokkaebi        12 2026-11-21 05:54 system.dtb -> zynq-zed.dtb
+-rw-r--r--. 1 dokkaebi dokkaebi   1057240 2026-11-21 05:48 u-boot.bin
+-rw-r--r--. 1 dokkaebi dokkaebi   1326116 2026-11-21 05:48 u-boot.img
+-rw-r--r--. 1 dokkaebi dokkaebi   4677360 2026-11-21 05:53 uImage
+-rwxr-xr-x. 1 dokkaebi dokkaebi     11934 2026-11-21 05:53 zynq-zed.dtb
+== sha256 (new | reference ~/br-ids)
+sdcard.img  new=36976e2be21632e8  ref=57612144aec7ea39  DIFFERENT
+uImage  new=ccf7ed1d5b026ea0  ref=d47c14821ee1a317  DIFFERENT
+zynq-zed.dtb  new=c8071c83efedf58f  ref=c8071c83efedf58f  SAME
+rootfs.tar  new=62f4308baf4ca7cd  ref=365c78d74ccf8665  DIFFERENT
+boot.bin  new=f81a394ab6a0e478  ref=2d02f16d641c9e1b  DIFFERENT
+u-boot.img  new=f79dc07f622f1b94  ref=785a105d31b1d9d3  DIFFERENT
+rootfs.ext2  new=5b4618daf0dd190a  ref=c457843abe6404e0  DIFFERENT
+== sizes (bytes)
+sdcard.img new=201327104 ref=201327104
+uImage new=4677360 ref=4677360
+rootfs.tar new=107591680 ref=107591680
+rootfs.ext2 new=167772160 ref=167772160
+vmlinux new=13425428 ref=13425428
+du -sx --block-size=1M target: new=114 ref=114
+du -sh out: 14G; du -sh br-clean total: 15G
+== .config diff vs ~/br-ids/.config (comments and path/version lines ignored)
+(end of diff; empty above = identical)
+== kernel .config diff vs ~/br-ids and vs repo copy (comment lines ignored)
+(end diff vs br-ids)
+(end diff vs repo copy)
+== package list (names with files in target)
+(end diff; names: new=27 ref=27)
+== regenerated manifests in the clone vs committed ones
+ os/buildroot/build.sh | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+(empty = regenerated report/*.csv identical to the committed files)
+== boot new image headless (timeout 180, serial to file)
+qemu exit status: 124  (124 = stopped by timeout, expected)
+[login:] -> 1 match(es)
+[pack OK] -> 0 match(es)
+[Started .*Rotating-model intrusion detector] -> 1 match(es)
+[idsd up] -> 0 match(es)
+[  OK  ] Started Rotating-model intrusion detector.
+ids login: systemd-journald[62]: Time jumped backwards, rotating.
+qemu processes left: 0
+qemu processes after cleanup: 0
+
+== second headless boot with login (pexpect), new image, measured in QEMU, not on the board
+# sleep 30; uname -r; mount | grep ' / '; systemctl is-active ids nftables; systemd-analyze | head -1; journalctl -u ids --no-pager | grep -E 'pack OK|idsd up'
+emd-analyze | head -1; journalctl -u ids --no-pager | grep -E 'pack OK|idsd up'
+6.6.70-xilinx
+/dev/mmcblk0p2 on / type ext4 (ro,relatime)
+active
+active
+Startup finished in 2.009s (kernel) + 27.290s (userspace) = 29.300s 
+Nov 21 00:36:43 ids python3[146]: pack OK: /opt/ids/pool-factory version 1 with 6 models
+Nov 21 00:36:43 ids python3[146]: idsd up: backend=arm input=mqtt rotate=poisson/30.0s pool=6 N_IN=61 active=m0

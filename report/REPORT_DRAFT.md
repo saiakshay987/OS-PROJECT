@@ -22,16 +22,21 @@ board".** Where a teammate's input is missing there is a visible `TODO(owner)` l
 7. **Kernel before/after is missing.** No kernel without the `ids.cfg` fragment was built, so no size or boot-time effect of the fragment can be claimed
    (section 3). `CONFIG_UTS_NS` *is* in the final Buildroot kernel (section 3) — the earlier statement "never rebuilt or verified" is out of date.
 8. **No PYNQ-Z2 device tree.** The Buildroot image uses the ZedBoard DTS (closest emulated board); the PetaLinux image uses the ZC702 BSP.
-9. **Stage-2 accuracy has not been compared with true labels**; the stage-2 step is shown to run (verdict names), nothing more. Stage 2 has not been
-   run with the Buildroot image in a measured run.
-10. **Record loss at high rates.** On the Buildroot guest, runs with stage 2 at 200 records/s processed only about 1,340-1,580 of 3,000 records, so their
-    recall (0.38-0.43) is *not* a detector result and is not reported (figures from the 21 Nov run log; TODO(P4): save the status counters as a file).
-    The Buildroot 200/s run without stage 2 and the clean 50/s run processed all 3,000 records.
+9. **Stage-2 accuracy has not been compared with true labels**; the stage-2 step is shown to run (verdict names), nothing more.
+   **Stage 2 did run against the Buildroot image** on 20-21 Nov 2026: P3 ran `stage2_server.py` and `replay.py` from their laptop against P2's broker and the QEMU guest, and verdicts
+   were produced (about 1,900 by the appliance's status counter at that point). The appliance's counters were **not reset between those runs**, so the processed fraction of those runs
+   is **not verified**. Their replay summaries at `--rate 50` (recall 0.769 and 0.827, FPR 0.036 and 0.043) are reported by P3 in chat on 20-21 Nov 2026, not saved in a results file (TODO(P3): commit the replay output as a results file).
+   The verified clean run (item below and Task 6) was done **without** stage 2 and must not be mixed with them.
+10. **Record loss at high rates.** On the Buildroot guest, the earlier stage-2 runs at 200 records/s processed only about 1,340-1,580 of 3,000 records (appliance counters), so their
+    recall (0.38-0.43) is *not* a detector result and is not reported (figures from the run log, reported by P3 in chat on 20-21 Nov 2026, not saved in a results file; TODO(P3/P4): save the status counters as a file).
+    The Buildroot 200/s run without stage 2 and the clean 50/s run (no stage 2, freshly booted guest) processed all 3,000 records.
+    Stage-2 verdict counts must come from the `verdicts` field of `ids/status`; the `journalctl | grep VERDICT` count is only a lower bound (journald rotates).
 11. **Unexplained difference with PetaLinux.** P2's PetaLinux guest ran 300 records/s with stage 2 and kept recall 0.871 (`notes/P2_NOTES.md`, "Live chain with P3"),
     while the Buildroot guest lost records at 200/s. Known setup differences: Buildroot guest = upstream QEMU 10.2.2 `xilinx-zynq-a9`, `-m 512`, 1 vCPU (`nproc` = 1),
     root on an SD ext4 image, `os/buildroot/qemu/boot_ids.sh` (no `-smp`/`-cpu`); PetaLinux guest = `petalinux-boot --qemu` (Xilinx QEMU), about 1 GiB RAM (MemTotal 1,029,224 kB),
     root in an initramfs, replay and stage 2 on other laptops over a LAN (`notes/P2_NOTES.md`). P2's QEMU options (`-smp`) are not recorded. **No cause is confirmed.**
 12. **Not measured on the board:** stock-image RAM and boot time; every Buildroot/PetaLinux RAM and boot figure below is QEMU.
+13. **The guest clock steps forward** (no RTC; journald prints "Time jumped backwards"; `notes/P4_NOTES.md`, `notes/P2_NOTES.md`), so the `uptime` field of `ids/status` and guest timestamps are unreliable and are not quoted. Replay latency is valid only when sender and receiver share a clock and is not reported.
 
 ## Task 1 — Requirements and why a stock distribution does not fit
 
@@ -62,10 +67,10 @@ appliance never uses; a general-purpose login-oriented userland cannot be shown 
 | Kernel | Xilinx linux-xlnx 6.6.70, `xilinx_zynq_defconfig` + 2 fragments | 6.6.10-xilinx-v2024.1 | `os/buildroot/kernel/README.md`; `notes/P2_NOTES.md` |
 | Init | systemd 256.17 | systemd (set in `petalinux-config -c rootfs`) | `report/licences.md`; `notes/P2_NOTES.md` |
 | Packages in the image | 26 (with files in rootfs), 29 non-virtual target packages incl. kernel/U-Boot/headers | 229 (Yocto `rootfs.manifest`) — **not comparable** | `report/package_manifest_buildroot.csv`; `notes/P2_NOTES.md` |
-| Build time | not timed (the log timestamps do not give a clean figure) | first full build 37m13s; later 3m14s, 4m40s, 1m26s | `notes/P2_NOTES.md` §4 |
+| Build time | about 1 h 30 min for the clean-clone build on a 12-CPU laptop (`report/clean_build_evidence.md`) | first full build 37m13s; later 3m14s, 4m40s, 1m26s | `notes/P2_NOTES.md` §4 |
 | Build tree size | `~/br-ids` 14 GB (`du -sh`, 21 Nov, includes host tools and the toolchain) | `build/` 17 GB (`du -sh`, 20 Nov) | `du -sh`; `notes/P2_NOTES.md` §4 |
 | Configuration kept in git | `ids_zynq_defconfig` + `board/ids/` (BR2_EXTERNAL); kernel `.config` copied in `os/buildroot/kernel/` | `project-spec/meta-user/` only (recipes, `petalinuxbsp.conf`, `user-rootfsconfig`) | `os/buildroot/`, `os/petalinux/` |
-| Reproducibility from the repo | `os/buildroot/build.sh configure` in a fresh clone gives the same `.config` as the real build (2 s, 21 Nov, apart from paths and version string); the long build was **not** repeated from a clean clone | manual steps: BSP download, `petalinux-create`, password hash, `petalinux-config -c rootfs`; the kernel `bbappend` is **not in the repo** | `report/deliverables_audit.md`; `os/petalinux/README.md` |
+| Reproducibility from the repo | `os/buildroot/build.sh configure` in a fresh clone gives the same `.config` as the real build (2 s, 21 Nov, apart from paths and version string); the full build **was** repeated from a fresh clone of `main` on 21 Nov (about 1 h 30 min, same sizes, same `.config`, boots; hashes differ, so not bit-for-bit; `report/clean_build_evidence.md`) | manual steps: BSP download, `petalinux-create`, password hash, `petalinux-config -c rootfs`; the kernel `bbappend` is **not in the repo** | `report/deliverables_audit.md`; `os/petalinux/README.md` |
 | Licence tooling | `make legal-info` and `show-info` | Yocto `license.manifest` (**TODO(P2)** not in repo) | `report/licences.md` |
 | Tool licences | open | proprietary Xilinx tool, listed in `report/licences.md` | `report/licences.md` |
 
@@ -151,10 +156,11 @@ Buildroot image, `os/buildroot/qemu/boot_ids.sh`, broker on the laptop at 10.0.2
 |---|---|---|---|---|---|---|
 | Clean run, freshly booted guest | 3,000 at 50/s | 3,000 of 3,000 (counter 0 before) | 1,710; 1,666/44/246/1,044 | 0.871 / 0.040 | not running (verdicts 0) | `results/live_chain_buildroot_qemu_50.txt` |
 | 20 Nov run | 3,000 at 200/s | 3,000 of 3,000 (`recs 3000`) | 1,697; 1,656/41/256/1,047 | 0.866 / 0.038 | not running | `results/live_chain_buildroot_qemu.txt` |
+| Stage-2 runs from P3's laptop against the Buildroot guest, `--rate 50` (two runs) | 3,000 at 50/s (as reported) | **not verified** (counters cumulative, not reset between runs) | not available | 0.769 and 0.827 / 0.036 and 0.043 | running (about 1,900 verdicts by the status counter) | P3's replay output, reported by P3 in chat on 20-21 Nov 2026, not saved in a results file. Not a headline result. |
 | PetaLinux, P3's laptop sends, P2's guest | 5,000 at 300/s | counters cumulative, fraction not verified (recall in line with the others) | 2,830; 2,747/83/407/1,763 | 0.871 / 0.045 | running (journal shows 8,432 VERDICT lines since boot, all runs) | `notes/P2_NOTES.md`, "Live chain with P3" |
 
-Appliance counters in the Buildroot rows are the first run after a boot; the replay summary is used for recall and FPR; the replay latency is not reported. Other Buildroot runs (stage 2 at 200/s; 50/s with cumulative counters, recall 0.769 and 0.827)
-are **excluded**: records lost or processed fraction unverified (limitations 10-11). Blocks: 38 addresses after the 200/s run, 8 attackers (10.0.9.1-8) and 30 benign (`results/live_chain_buildroot_qemu.txt`); 52 blocks in the clean 50/s run (split not captured).
+Appliance counters in the Buildroot rows are the first run after a boot; the replay summary is used for recall and FPR; the replay latency is not reported. The stage-2 row is listed for completeness only (processed fraction unverified, limitation 9). The earlier stage-2 runs at 200/s
+are **excluded**: records were lost (limitation 10), so their recall is not a detector result. The clean run was done without stage 2 and is not comparable with the stage-2 rows. Blocks: 38 addresses after the 200/s run, 8 attackers (10.0.9.1-8) and 30 benign (`results/live_chain_buildroot_qemu.txt`); 52 blocks in the clean 50/s run (split not captured).
 Swaps: 7 in the 60 s clean run, 124 records handled by the ARM fallback model during swap windows (4.1%).
 
 **Demo rehearsal findings** (`results/demo_rehearsal_buildroot_qemu.txt`): changing `ROTATE` in `/data/ids.conf` and restarting works (rotate=off gives 0 SWAP lines; poisson/5 s gives a SWAP every 4-5 s). The live attacker script (`app/laptop/attack_demo.py`) did **not**

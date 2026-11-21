@@ -60,7 +60,8 @@ build() {
 
 manifest() {
   "${MK[@]}" legal-info
-  "${MK[@]}" show-info > "$OUT/show-info.json"
+  # --no-print-directory: "make -C" otherwise prints "Entering directory" into the JSON (found in the 21 Nov clean-clone build)
+  "${MK[@]}" --no-print-directory show-info > "$OUT/show-info.json"
   python3 "$REPO/os/buildroot/gen_manifest.py" "$OUT/show-info.json" "$OUT/build/packages-file-list.txt" \
     > "$REPO/report/package_manifest_buildroot.csv"
   cp "$OUT/legal-info/manifest.csv" "$REPO/report/licences-manifest.csv"
