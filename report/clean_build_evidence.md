@@ -81,3 +81,5 @@ So the download URLs **were** exercised, including the fallback; a site that is 
 ## Clean-up
 Only the two directories created for this job (`~/br-clean`, `~/clean-clone`) were deleted after this file was committed; `~/br-clean-build.log` and `~/br-clean-finish.txt` were kept; `~/br-ids`, `~/buildroot`, `~/Downloads`, `~/Documents` and `keys_release/` were not touched.
 Free space on `/` after the deletion: see the last line of this file.
+
+Free space on `/` after deleting `~/br-clean` and `~/clean-clone`: 30,149 MiB available (`df -h ~`: 78G size, 44G used, 30G avail, 60%); 14,851 MiB were freed (15,297 MiB available just before).
