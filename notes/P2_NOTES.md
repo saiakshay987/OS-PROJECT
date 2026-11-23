@@ -14,7 +14,7 @@ Every command that worked, every error and its fix, with dates. Every number wit
 | Board | No PYNQ board. The FPGA swap is imitated (`SWAP_MS`, default 207 ms) |
 | Python (laptop) | 3.10.12, venv `.venv` with paho-mqtt 2.2.0 |
 | Python MQTT (image) | paho-mqtt 1.x (python3-paho-mqtt from the PetaLinux rootfs) |
-| OS-PROJECT repo | `~/Desktop/OS-PROJECT`, branch `p2/e3-hardening-results`, E3 results committed in `61ead56` at the time of writing (clone of github.com/saiakshay987/OS-PROJECT). The paho 1.x fix (PR #7, `p2/paho1-compat`, `b9a26ad`) was merged into `main` on 20 Nov 2026 and is now also in this branch after rebasing |
+| OS-PROJECT repo | `~/Desktop/OS-PROJECT` (clone of github.com/saiakshay987/OS-PROJECT). E3 results were committed in `61ead56` (20 Nov 2026); all P2 branches (`p2/paho1-compat`, `p2/petalinux-recipes`, `p2/notes-speed-kernel`, `p2/e3-hardening-results`, `p2/live-chain-notes`, `cosim/zynq-qemu`, `cosim/demo`) are merged into `main` (checked 23 Nov 2026: 0 commits ahead of `origin/main`). The paho 1.x fix is PR #7, `p2/paho1-compat`, `b9a26ad` |
 | PetaLinux project | `~/plx/ids-os`, **not a git repository**, so there is no commit hash. Its state is described below and by the files in `os/petalinux/` and `kernel/` |
 | Disk | Tight: about 72-76 GB free; installer 3.1 GB (deleted afterwards) |
 
@@ -37,13 +37,16 @@ What is set up in `~/plx/ids-os`:
 
 ## 2. Commands that worked, in order (20 Nov 2026)
 
-TODO: the exact command history was not provided and could not be verified from files. Below is what is known; the order follows the build/run flow. Fill in or correct from shell history (`history | less`) before handing off.
+The exact shell history was not saved, so the order below follows the build/run flow and only the commands that are visible in repo files or result logs are written in full. Items marked "not recorded" are open (see section 8).
 
 1. Configure init manager: `cd ~/plx/ids-os && petalinux-config -c rootfs` -> Image Features -> Init-manager -> systemd. (After the failed attempt in section 3, item 1.)
 2. Build: `petalinux-build` (first full build 37m13s; later builds 3m14s, 4m40s, 1m26s).
 3. Boot in QEMU: `petalinux-boot --qemu --kernel`. Leave QEMU with **Ctrl-a x**.
-4. Laptop broker: `mosquitto -c app/laptop/mosquitto.conf` (TODO: confirm this was the exact invocation).
-5. Laptop replay (flags from `replay.py --help`: `--broker --transport {mqtt,udp} --host --port --data --n --rate --attackers --seed --csv --label`): `python3 app/laptop/replay.py --n 3000 --rate 300 ...` (TODO: paste the full command including `--data`, `--attackers`, `--seed`, `--csv`, `--label` if used; the defaults were not recorded).
+4. Laptop broker: `mosquitto -c app/laptop/mosquitto.conf` (listener 1883 on 0.0.0.0, anonymous; the form given in `README.md`; stop any system mosquitto first, otherwise port 1883 is taken). Not recorded: whether this exact line was typed on 20 Nov.
+5. Laptop replay (flags from `replay.py`: `--broker --transport {mqtt,udp} --host --port --data --n --rate --attackers --seed --csv --label`; defaults `--data models/test_encoded.npz --attackers 8 --seed 0`): `python3 app/laptop/replay.py --n 3000 --rate 300 ...`. Not recorded: the `--broker` value and whether `--csv`/`--label` were used for the 3000-record QEMU run.
+5a. E3 on the laptop (no QEMU, one daemon only): `sh bench/e3_blind_window.sh [broker]` (env `SWAPS`, `FALLBACKS`, `RATES`, `SECS` override the grid; default 34/207/550 ms x arm/hold/open x 100/500/1500 per s, 30 s per row, `--rotate fixed --rotate-s 5 --seed 1 --block log`, plus a no-rotation row). Output: `results/e3_blind_window.csv`, console copy in `results/e3_console.log`.
+5b. E3 in QEMU: the same `replay.py ... --csv results/e3_qemu.csv --label <name>` run by hand against the guest service or a manual daemon (labels in section 4). Not recorded: the exact flags.
+5c. Image measurement: `bench/measure_image.sh <label>` pasted into the guest as `/tmp/m.sh` (the guest firewall blocks `wget`), run as `sh /tmp/m.sh petalinux-before-hardening` and later `petalinux-hardened`. Model speed: `bench/speed_pct.py` in the guest with the service stopped.
 6. Tests on the laptop: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q` (5 passed).
 7. Inside the guest, firewall set check (root): `sudo nft list set inet filter blocked`, or `while true; do sudo nft list set inet filter blocked; sleep 10; done` while a replay is running.
 8. Journal checks: `journalctl -u ids` and grep for `BLOCK 10.0.9.` / `BLOCK 10.0.0.` (TODO: paste exact command).
@@ -94,7 +97,7 @@ All QEMU numbers: `replay.py` through the QEMU image, 20 Nov 2026, 3000 records 
 | `rootfs.tar.gz` | 49,466,177 B (about 47.2 MiB) | same | no commit |
 | Image build timestamp | `image.ub` and rootfs files dated 20 Nov 18:42 (build 3; `system.dts` and `config` 18:41-18:42) | `ls -l` | no commit |
 
-**E3 results** (blind window of a model swap). Source: `results/e3_blind_window.csv`, 28 rows, produced by `bench/e3_blind_window.sh` on the laptop daemon (no QEMU): `--rotate fixed --rotate-s 5 --seed 1`, replay 30 s per row (records = rate x 30). Every value below is computed from the CSV by a short Python snippet, not typed by hand. Commit of the repo when run: TODO (CSV is untracked; record `git rev-parse --short HEAD` when it is committed). Recall/FPR are per record; alert p50/p95 are record-sent to alert-seen in ms.
+**E3 results** (blind window of a model swap). Source: `results/e3_blind_window.csv`, 28 rows, produced by `bench/e3_blind_window.sh` on the laptop daemon (no QEMU): `--rotate fixed --rotate-s 5 --seed 1`, replay 30 s per row (records = rate x 30). Every value below is computed from the CSV by a short Python snippet, not typed by hand. The CSV was committed in `61ead56` (20 Nov 2026); the repo HEAD at run time was not recorded. Recall/FPR are per record; alert p50/p95 are record-sent to alert-seen in ms.
 
 | Swap (ms) | Fallback | Rate (/s) | Records | Recall | FPR | Alert p50 (ms) | Alert p95 (ms) | Fallback recs | Unclassified | Held |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -139,7 +142,7 @@ Each rotating row had 7 swaps (`swaps` column) in 30 s.
 
 **Batch granularity (why swap 34 ms looks coarse):** `replay.py` publishes records in batches of rate x 0.05, i.e. 5, 25 and 75 records at 100, 500 and 1500/s, one batch every 50 ms. The swap-34 fallback counts in the CSV (30, 150, 450) equal 6 x the batch size, so a swap that overlaps a batch marks the whole batch. Per-row fractions therefore move in batch-sized steps (0% or 1.00% at swap 34 ms, never near the predicted 0.68%), and only the pooled fraction is meaningful. (Batch sizes taken from the replay design as described by the author; not re-checked in `replay.py` for this note.)
 
-**E3 in QEMU** (guest daemon, real service image). Source: `results/e3_qemu.csv`, 14 rows, 20 Nov 2026, replay 30 s per row (records = rate x 30), rotation `fixed`, 5 s period, swap 207 ms, seed 1 unless stated. Every value below is computed from the CSV by a Python snippet. Repo commit when run: TODO (CSV untracked). Alert p50/p95 = record-sent to alert-seen in ms, measured with the **guest clock** (see section 5, E3-QEMU (g)).
+**E3 in QEMU** (guest daemon, real service image). Source: `results/e3_qemu.csv`, 14 rows, 20 Nov 2026, replay 30 s per row (records = rate x 30), rotation `fixed`, 5 s period, swap 207 ms, seed 1 unless stated. Every value below is computed from the CSV by a Python snippet. The CSV was committed in `61ead56` (20 Nov 2026); the repo HEAD at run time was not recorded. Alert p50/p95 = record-sent to alert-seen in ms, measured with the **guest clock** (see section 5, E3-QEMU (g)).
 
 **Cumulative counters.** In `e3_qemu.csv` the columns `swaps`, `fallback_recs`, `unclassified`, `held` (and `recs`) are cumulative since the daemon start. The daemon was **not** restarted between the 100/s and the 500/s run of a mode, nor between the three `svc_*` runs. Per-run values are differences, e.g. arm 500/s fallback = 810 - 135 = 675; svc cold/warm/rewarm fallback = 0, 135 - 0 = 135, 135 - 135 = 0. The `blocks` counter is not a column of the CSV; the block counts quoted below (svc new blocks 38, 42 - 38 = 4, 70 - 42 = 28) come from the daemon status as cumulative values, as reported by the author, and are not recomputed here. `recs` is also cumulative and is not reliable per run (e.g. off_nft 500/s: 18000 - 2880 = 15120 > 15000 sent), so it is not used.
 
@@ -382,7 +385,7 @@ sudo journalctl -u ids --no-pager | grep VERDICT | awk '{print $9}' | sort | uni
 
 ## 6. Open TODOs
 
-- DONE: E3 results are committed on branch `p2/e3-hardening-results`, commit `61ead56` at the time of writing (E3 CSVs, console log, firewall and read-only screenshots, the notes).
+- DONE: E3 results are committed (commit `61ead56`: E3 CSVs, console log, firewall and read-only screenshots, the notes) and merged into `main`.
 - TODO: find out why the service is slower than a manual nft run (journald logging per line, 300/s rate, and the service sandbox as a hypothesis: hardened p95 was higher than unhardened, see "Hardening, pruning and latency", but this is not isolated). Test one at a time.
 - TODO (future work, not in this freeze): move the `nft` call in `idsd.py` `block()` to a worker thread or a persistent netlink connection.
 - TODO: compare guest and laptop `date` over 2 minutes to check the guest clock (E3-QEMU (g)).
@@ -411,4 +414,37 @@ sudo journalctl -u ids --no-pager | grep VERDICT | awk '{print $9}' | sort | uni
 - **Design limitation text for the report (P1):** section 5, first bullet.
 - **Reproduce:** mosquitto with `app/laptop/mosquitto.conf`, boot the image with `petalinux-boot --qemu --kernel`, run `replay.py --n 3000 --rate 300`; only one daemon on the broker.
 - **paho 1.x patch:** PR #7 (`p2/paho1-compat`, `b9a26ad`) merged into `main` on 20 Nov 2026; the fix is in `main` and is now also in this branch after rebasing.
-- **E3 results location:** branch `p2/e3-hardening-results`, commit `61ead56` at the time of writing (E3 CSVs, console log, firewall and read-only screenshots, the notes).
+- **E3 results location:** `results/` on `main` (added in commit `61ead56`: E3 CSVs, console log, firewall and read-only screenshots).
+
+## 8. Final state for the viva (23 Nov 2026)
+
+**Label key.** Every number in these notes and in the README is one of: **measured** (run on this laptop: model code on x86, or counters from a daemon on the laptop), **emulated in QEMU** (emulated ARM guest; correct counts, timing is NOT hardware speed), **tool estimate** (a number a build tool printed, not checked on hardware), or **imitated** (a stand-in value, not a measurement). Section 4 and the E3 tables are measured (laptop) or emulated in QEMU as stated in their headings. The FPGA swap time `SWAP_MS` = 207 ms is **imitated**; no board was used.
+
+**Image in one place** (PetaLinux 2024.1, ZC702 BSP, kernel 6.6.10-xilinx; QEMU boot `petalinux-boot --qemu --kernel`; sources: sections 1, 5 and the hardening sections above).
+
+| Item | Value | Label |
+|---|---|---|
+| Root filesystem | initramfs in RAM, mounted read-only (`EXTRA_IMAGE_FEATURES += "read-only-rootfs"`); evidence `results/read_only_root.png` | emulated in QEMU (on a board this would be an SD root) |
+| `/data` | 64M tmpfs, `nodev,nosuid`, via `data.mount`; third SD partition on a board (`os/petalinux/fstab.example`), untested | emulated in QEMU |
+| Service | `ids.service`: `User=ids`, `AmbientCapabilities=CAP_NET_ADMIN`, `CapabilityBoundingSet=CAP_NET_ADMIN`, `Restart=on-failure`, `RestartSec=2`, `ExecStartPre=+/usr/sbin/nft -f /etc/nftables.conf` | file `os/petalinux/ids.service` |
+| Masked units | 18 (list in "Baseline image measurements"), sshd masked, console only | emulated in QEMU |
+| Firewall | default-deny input, forward and output; `blocked` set (`ipv4_addr`, `flags timeout`); input allows udp 5555, tcp 22 (rate limited), icmp echo (rate limited); output allows tcp 1883, udp 53 and 123; the daemon adds sources with `BLOCK_TTL=60s` | file `os/petalinux/project-spec/meta-user/recipes-apps/ids-app/files/nftables.conf` |
+| Daemon defaults (`/etc/ids/ids.conf`, overridable in `/data/ids.conf`) | `INPUT=mqtt`, `BROKER=10.0.2.2`, `BACKEND=arm`, `ROTATE=poisson`, `ROTATE_S=30`, `SWAP_MS=207`, `FALLBACK=arm`, `BLOCK=nft`, `BLOCK_TTL=60s` | file `app/appliance/ids.conf`; `SWAP_MS` imitated |
+| Live chain (20 Nov) | stage 1 recall 0.871, FPR 0.045; 8,432 `VERDICT` lines in the guest journal since boot; stage-2 accuracy not compared with true labels | emulated in QEMU; see "Live chain with P3" |
+
+**Hardening findings (short).** (1) `ProtectHostname` has no effect: the kernel has no namespaces (`CONFIG_NAMESPACES` not set). (2) setuid files 17 -> 9 after pruning; the cause was not worked out and it is not credited to hardening. (3) First-alert blocking also blocks benign hosts (34 of 50 in the journal run, 20-31 of 50 in the live chain looks). (4) The hardened service had a higher p95 than the unhardened one (314.5 vs 191.6 ms); the cause is untested.
+
+**Guest quirks.** BusyBox `free` reports KB even with `-m`, so the `mem_used_mb` column is really KB. `ss` is not in the image (the measurement uses `netstat -tuln`). The guest clock is unsynchronised (journal dates read Nov 08), so guest timestamps are not real dates; latency numbers measured with the guest clock are guest-clock numbers.
+
+**Co-simulation (not part of the image).** m0 only. Details, commands and logs: `cosim/NOTES.md`, `cosim/DEMO.md`, `cosim/logs/`. Result: Check C, 64/64 canary records matched through the Verilated m0 IP driven from Linux in QEMU; the waveform `cosim/demo/one_inference.vcd` (trimmed, 81,700 B) shows one inference with `ap_start` high and `ap_idle` low for 284 clock cycles. The simulated PL clock is 10 microseconds, so only cycle counts mean anything; no wall-clock or FPGA timing is claimed. No clock estimate from the HLS tool is quoted here because it could not be checked.
+
+**Open items (nothing below is invented; these are things the repo cannot show).**
+- Exact shell history for the 20 Nov build and replay runs (section 2 "not recorded").
+- Source file for the 3000-record QEMU replay numbers in section 4: the numbers are in these notes only, there is no `results/` CSV for that run.
+- Source files for model speed in the guest (`bench/speed_pct.py` output): the table in section 5 is in these notes only; `results/speed_buildroot_qemu.csv` is P4's Buildroot run, not this one.
+- Guest vs laptop clock comparison over 2 minutes (E3-QEMU (g)) not done.
+- Why the service is slower than a manual nft run (journald, rate, sandbox) not tested.
+- Setuid drop 17 -> 9 not explained.
+- Stage-2 accuracy against true labels not computed.
+- No board: FPGA swap time, PS-PL transfer and real hardware timing are untested.
+- P2 section of the report (`report/REPORT_DRAFT.md`) is P1/P4's file; P2 text not checked in.
