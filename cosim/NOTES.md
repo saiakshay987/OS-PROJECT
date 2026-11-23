@@ -122,10 +122,10 @@ Offsets match `XQMLP_CTRL_ADDR_*` in `cosim/include/xqmlp_hw.h`.
 What Janith's HLS run did and did not cover (from his `hls.log`: `csim_design`, `csynth_design`, `export_design`; no `cosim_design`):
 - He only ran the HLS **C simulation** (564 vectors, 0 mismatches). There was no HLS C/RTL co-simulation, so **Check R (this repo's
   Verilator test) was the first test of the generated RTL**.
-- Clock: target period 10 ns (`create_clock -period 10`, also in `ReleaseNotes.txt`). A synthesis clock estimate of **6.9 ns** was
-  reported to us, but **it cannot be checked from the package** (no csynth report is included). The only "6.9x" in `hls.log` is
-  `Elapsed time: 6.97 seconds`, which is unrelated. In any case an HLS estimate is not post-place-and-route timing: no Vivado
-  implementation or timing closure has been done for this IP.
+- Clock: target period 10 ns (`create_clock -period 10`, also in `ReleaseNotes.txt`). No synthesis clock estimate is quoted
+  here: the package contains no csynth report, so none can be checked. P1 later ran a Vivado implementation of m0 (commit
+  `271a75f`, report `hw/reports/m0_impl_timing.rpt`, routed design, 20 Nov 2026). That report is P1's result; this co-simulation
+  does not use or check it.
 
 ## Step 4: Check R (m0 RTL alone in Verilator)
 
@@ -148,7 +148,7 @@ Result (`cosim/logs/checkR.txt`):
 AP_CTRL after reset = 0x00000004 (ap_idle bit2 set)
 564 vectors, 0 mismatches (193479 clock cycles) -> PASS
 ```
-About 343 clock cycles per record. Passed on the first run after the `sc_time_stamp` link fix.
+The 193479 cycles include the testbench's AXI-Lite writes and polling for every record, so they are not the inference time; the inference itself is measured in the waveform (284 busy cycles, see `cosim/DEMO.md`). Passed on the first run after the `sc_time_stamp` link fix.
 
 Negative controls (so the PASS is not vacuous): changing the expected score of vector 1 by +1 gives
 `1 mismatches -> FAIL`; replacing vector 2's input with all 255 gives got score=-8 vs expected -20, `FAIL`.
@@ -183,8 +183,8 @@ Three problems on the way, all fixed in `ids_cosim.cc` (the RTL was fine each ti
 1. **Boot never finished with a 10 ns PL clock.** `ids_cosim` sat at 100% CPU, QEMU idle, no console output for 10 minutes.
    Cause: with `-sync-quantum 100000` ns SystemC must simulate 10,000 RTL clock cycles (Verilator eval + trace) per quantum,
    and `-icount 7` makes the boot span hundreds of simulated seconds. Fix: PL clock period 10 us (`QMLP_CLK_NS`, as Xilinx's
-   `zynqmp_demo` uses). **Consequence: the simulated clock is 10 us, not the 100 MHz HLS target.** One inference is about
-   343 clock cycles = ~3.4 ms of simulated time. Cycle counts are valid, wall-clock timing is not claimed.
+   `zynqmp_demo` uses). **Consequence: the simulated clock is 10 us, not the 100 MHz HLS target.** One inference is
+   284 busy clock cycles (2.84 ms of simulated time, from the waveform). Cycle counts are valid, wall-clock timing is not claimed.
 2. **VCD grew to 18 GB in ten minutes** (about 28 MB/s) because the demo's `trace()` dumps the whole Zynq model and the
    clock. Caught at 25 GB free disk, process killed, file deleted. Now only rst_n and the AXI-Lite signals are traced (they
    change only on real activity; the file is a few KB). The clock is added only with `IDS_COSIM_VCD_CLK=1` for short runs.

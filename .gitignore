@@ -45,3 +45,10 @@ vivado.jou
 vivado.log
 hw/vivado_*.log
 hw/bit/*.bit
+# large or secret files that must never be committed (added 23 Nov 2026)
+*.webm
+*.ext4
+*.cpio
+*.cpio.gz
+*.ub
+*priv*.pem
